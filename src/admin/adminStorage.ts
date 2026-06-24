@@ -131,22 +131,28 @@ export function emptyLocalizedString(): LocalizedString {
 
 /** Default contact info — derived from existing hardcoded values. */
 export const DEFAULT_CONTACT_INFO: ContactInfo = {
-  whatsapp: '8613800138000',
-  email: 'sales@autoparts-export.com',
-  phone: '+86 138 0013 8000',
-  address: localizedFromTranslationKey('contact.addressValue'),
-  wechatId: 'AutoPartsExport',
+  whatsapp: '8615711970362',
+  email: 'sz26655873@gmail.com',
+  phone: '+86 157 1197 0362',
+  address: {
+    en: 'Guangzhou, China',
+    zh: '中国广州',
+    ru: 'Гуанчжоу, Китай',
+    ar: 'غوانزو، الصين',
+    ko: '광저우, 중국',
+  },
+  wechatId: '15711970362',
   wechatQrImage: 'https://picsum.photos/seed/wechatqr/300/300',
 };
 
 /** Default company info — derived from existing translation strings. */
 export const DEFAULT_COMPANY_INFO: CompanyInfo = {
   name: {
-    en: 'AutoParts Export',
-    zh: 'AutoParts Export',
-    ru: 'AutoParts Export',
-    ar: 'AutoParts Export',
-    ko: 'AutoParts Export',
+    en: 'Altai Auto Parts',
+    zh: 'Altai Auto Parts',
+    ru: 'Altai Auto Parts',
+    ar: 'Altai Auto Parts',
+    ko: 'Altai Auto Parts',
   },
   title: localizedFromTranslationKey('about.title'),
   description1: localizedFromTranslationKey('about.desc1'),

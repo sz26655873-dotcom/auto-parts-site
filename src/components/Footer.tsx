@@ -50,9 +50,9 @@ function Footer(): JSX.Element {
             <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
               <DirectionsCarIcon sx={{ color: 'secondary.main' }} />
               <Typography variant="h6" sx={{ fontWeight: 800 }}>
-                AutoParts
+                Altai Auto
                 <Box component="span" sx={{ color: 'secondary.main' }}>
-                  Export
+                  Parts
                 </Box>
               </Typography>
             </Stack>
@@ -130,7 +130,7 @@ function Footer(): JSX.Element {
           }}
         >
           <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.5)' }}>
-            © {CURRENT_YEAR} AutoParts Export. {t('footer.rights')}
+            © {CURRENT_YEAR} Altai Auto Parts. {t('footer.rights')}
           </Typography>
         </Box>
       </Container>

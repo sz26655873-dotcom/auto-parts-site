@@ -155,9 +155,9 @@ function Navbar(): JSX.Element {
                 whiteSpace: 'nowrap',
               }}
             >
-              AutoParts
+              Altai Auto
               <Box component="span" sx={{ color: 'secondary.main' }}>
-                Export
+                Parts
               </Box>
             </Typography>
 

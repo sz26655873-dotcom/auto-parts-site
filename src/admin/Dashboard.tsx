@@ -119,7 +119,7 @@ function Dashboard(): JSX.Element {
         Dashboard
       </Typography>
       <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
-        Welcome to the AutoParts Export admin panel. Manage your products, contact details, and company information.
+        Welcome to the Altai Auto Parts admin panel. Manage your products, contact details, and company information.
       </Typography>
 
       {/* Last modified info */}

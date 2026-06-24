@@ -13,7 +13,7 @@ const allLangs: Language[] = ['en', 'zh', 'ru', 'ar', 'ko'];
 describe('whatsapp utility', () => {
   describe('WHATSAPP_PHONE constant', () => {
     it('should be the expected international format without "+"', () => {
-      expect(WHATSAPP_PHONE).toBe('8613800138000');
+      expect(WHATSAPP_PHONE).toBe('8615711970362');
     });
 
     it('should contain only digits', () => {

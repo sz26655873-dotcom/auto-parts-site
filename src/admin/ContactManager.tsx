@@ -101,7 +101,7 @@ function ContactManager(): JSX.Element {
             onChange={handleScalarChange('whatsapp')}
             size="small"
             sx={{ mb: 3 }}
-            helperText="International format without + (e.g. 8613800138000)"
+            helperText="International format without + (e.g. 8615711970362)"
           />
 
           <Divider sx={{ my: 3 }} />

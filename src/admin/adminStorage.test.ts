@@ -105,8 +105,8 @@ describe('adminStorage', () => {
     it('should return default contact info when localStorage is empty', () => {
       const result = getContactInfo();
       expect(result).toEqual(DEFAULT_CONTACT_INFO);
-      expect(result.whatsapp).toBe('8613800138000');
-      expect(result.email).toBe('sales@autoparts-export.com');
+      expect(result.whatsapp).toBe('8615711970362');
+      expect(result.email).toBe('sz26655873@gmail.com');
     });
 
     it('should return stored contact info when localStorage has data', () => {

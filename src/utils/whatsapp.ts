@@ -7,7 +7,7 @@
 import type { Language } from '../i18n/translations';
 
 /** Placeholder WhatsApp phone number (international format without +). */
-export const WHATSAPP_PHONE = '8613800138000';
+export const WHATSAPP_PHONE = '8615711970362';
 
 /** Default pre-filled message for generic inquiries (English fallback). */
 export const WHATSAPP_DEFAULT_MESSAGE =
