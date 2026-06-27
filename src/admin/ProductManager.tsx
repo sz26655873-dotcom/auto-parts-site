@@ -55,6 +55,7 @@ import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import SyncIcon from '@mui/icons-material/Sync';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
+import LightbulbIcon from '@mui/icons-material/Lightbulb';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useAdminData } from './AdminDataContext';
 import { productCategories, type Product, type ProductCategory, type ApplicableModel, type LocalizedString } from '../data/products';
@@ -689,276 +690,491 @@ function ProductManager(): JSX.Element {
                 {aiError}
               </Alert>
             )}
-            {editingProduct && (
+                        {editingProduct && (
               <Box sx={{ mt: 1 }}>
-                {/* One-click action bar */}
-                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mb: 2 }}>
-                  <Button
-                    variant="contained"
-                    color="secondary"
-                    startIcon={aiGenerating === 'sync' ? <CircularProgress size={18} color="inherit" /> : <SyncIcon />}
-                    onClick={handleSyncLanguages}
-                    disabled={aiGenerating !== null}
-                    sx={{ textTransform: 'none', flex: 1 }}
-                  >
-                    一键同步语言
-                  </Button>
-                  <Button
-                    variant="contained"
-                    color="primary"
-                    startIcon={aiGenerating === 'optimizeSeo' ? <CircularProgress size={18} color="inherit" /> : <AutoFixHighIcon />}
-                    onClick={handleOptimizeSeo}
-                    disabled={aiGenerating !== null || (!editingProduct.name?.en && !editingProduct.model)}
-                    sx={{ textTransform: 'none', flex: 1 }}
-                  >
-                    一键优化SEO
-                  </Button>
-                </Stack>
-
-                {/* Basic fields */}
-                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 2 }}>
-                  <TextField
-                    fullWidth
-                    label="型号"
-                    required
-                    value={editingProduct.model}
-                    onChange={(e: ChangeEvent<HTMLInputElement>) => handleFieldChange('model', e.target.value)}
-                    size="small"
-                  />
-                  <Autocomplete
-                    fullWidth
-                    freeSolo
-                    size="small"
-                    options={editableCategories}
-                    getOptionLabel={(option) => {
-                      if (typeof option === 'string') return option;
-                      return option.label[lang];
-                    }}
-                    value={
-                      editableCategories.find((c) => c.id === editingProduct.category) ?? editingProduct.category
-                    }
-                    onChange={(event: SyntheticEvent, newValue: ProductCategory | string | null) => {
-                      if (newValue === null) {
-                        handleFieldChange('category', '');
-                      } else if (typeof newValue === 'string') {
-                        handleFieldChange('category', newValue);
-                      } else {
-                        handleFieldChange('category', newValue.id);
-                      }
-                    }}
-                    onInputChange={(event: SyntheticEvent, newInputValue: string) => {
-                      // Only update if it's a freeSolo typed value (not matching an existing option)
-                      const matchedOption = editableCategories.find(
-                        (c) => c.label[lang] === newInputValue || c.id === newInputValue
-                      );
-                      if (!matchedOption && newInputValue) {
-                        handleFieldChange('category', newInputValue);
-                      }
-                    }}
-                    renderOption={(props, option) => {
-                      const { key, ...restProps } = props as unknown as Record<string, unknown>;
-                      const isCategory = typeof option !== 'string';
-                      const displayLabel = isCategory ? option.label[lang] : option;
-                      const logoSrc = isCategory ? option.logo : undefined;
-                      return (
-                        <li key={key as string} {...restProps as React.HTMLAttributes<HTMLLIElement>}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            {logoSrc && (
-                              <img
-                                src={logoSrc}
-                                alt={displayLabel}
-                                style={{ width: 24, height: 24, objectFit: 'contain' }}
-                              />
-                            )}
-                            <span>{displayLabel}</span>
-                          </Box>
-                        </li>
-                      );
-                    }}
-                    renderInput={(params) => (
-                      <TextField {...params} label="分类" />
-                    )}
-                  />
-                </Stack>
-                <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
-                  产品图片 (最多 5 张，第一张为主图)
-                </Typography>
-                <MultiImageGallery
-                  images={editingProduct.images || (editingProduct.image ? [editingProduct.image] : [])}
-                  onChange={(newImages) => {
-                    handleFieldChange('image', newImages[0] || '');
-                    handleFieldChange('images', newImages);
+                {/* ══════════════════════════════════════════════════════
+                    ① 快捷操作栏 — 固定在顶部，带使用提示
+                    ══════════════════════════════════════════════════════ */}
+                <Paper
+                  elevation={2}
+                  sx={{
+                    p: 2.5,
+                    mb: 2.5,
+                    bgcolor: '#fafbff',
+                    border: '1.5px solid',
+                    borderColor: 'primary.light',
+                    borderRadius: 2.5,
                   }}
-                />
-                <LocalizedTextField
-                  label="产品名称"
-                  required
-                  value={editingProduct.name}
-                  onChange={(value) => handleFieldChange('name', value)}
-                  showActions={false}
-                />
-                <TextField
-                  fullWidth
-                  label="OEM 编号"
-                  value={editingProduct.oemNumber || ''}
-                  onChange={(e: ChangeEvent<HTMLInputElement>) => handleFieldChange('oemNumber', e.target.value)}
-                  size="small"
-                  sx={{ mt: 1 }}
-                />
-                <LocalizedTextField
-                  label="描述"
-                  multiline
-                  rows={3}
-                  value={editingProduct.description}
-                  onChange={(value) => handleFieldChange('description', value)}
-                  showActions={false}
-                />
+                >
+                  <Stack spacing={1.5}>
+                    {/* 使用提示 */}
+                    <Alert
+                      severity="info"
+                      icon={<LightbulbIcon fontSize="small" />}
+                      sx={{
+                        py: 0,
+                        '& .MuiAlert-message': { fontSize: '0.82rem' },
+                      }}
+                    >
+                      填写完下方「核心信息」后，点击以下按钮自动补齐多语言内容和SEO信息
+                    </Alert>
 
-                <Divider sx={{ my: 2 }} />
+                    {/* 操作按钮 */}
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+                      <Tooltip title="将中文内容自动翻译为英文、俄文、西班牙文、韩文" placement="top">
+                        <Button
+                          variant="contained"
+                          color="secondary"
+                          fullWidth
+                          startIcon={aiGenerating === 'sync' ? <CircularProgress size={18} color="inherit" /> : <SyncIcon />}
+                          onClick={handleSyncLanguages}
+                          disabled={aiGenerating !== null}
+                          sx={{
+                            textTransform: 'none',
+                            fontWeight: 700,
+                            py: 1.3,
+                            fontSize: '0.92rem',
+                            borderRadius: 2,
+                          }}
+                        >
+                          🌐 一键同步语言
+                        </Button>
+                      </Tooltip>
+                      <Tooltip title="AI 自动生成 SEO 标题、描述、关键词，优化 Google 搜索排名" placement="top">
+                        <Button
+                          variant="contained"
+                          color="primary"
+                          fullWidth
+                          startIcon={aiGenerating === 'optimizeSeo' ? <CircularProgress size={18} color="inherit" /> : <AutoFixHighIcon />}
+                          onClick={handleOptimizeSeo}
+                          disabled={aiGenerating !== null || (!editingProduct.name?.en && !editingProduct.model)}
+                          sx={{
+                            textTransform: 'none',
+                            fontWeight: 700,
+                            py: 1.3,
+                            fontSize: '0.92rem',
+                            borderRadius: 2,
+                          }}
+                        >
+                          ⚡ 一键优化 SEO
+                        </Button>
+                      </Tooltip>
+                    </Stack>
+                  </Stack>
+                </Paper>
 
-                {/* SEO Fields Accordion */}
-                <Accordion>
-                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                      SEO 信息
-                    </Typography>
+                {/* ══════════════════════════════════════════════════════
+                    ② 核心信息（必填）— 默认展开
+                    ══════════════════════════════════════════════════════ */}
+                <Accordion defaultExpanded sx={{ mb: 2, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
+                  <AccordionSummary
+                    expandIcon={<ExpandMoreIcon />}
+                    sx={{ bgcolor: 'grey.50', borderRadius: 1 }}
+                  >
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <Chip label="①" size="small" color="primary" sx={{ fontWeight: 700, fontSize: '0.75rem' }} />
+                      <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                        核心信息（必填）
+                      </Typography>
+                    </Stack>
                   </AccordionSummary>
-                  <AccordionDetails>
-                    <Stack spacing={2}>
+                  <AccordionDetails sx={{ pt: 2.5, pb: 2.5 }}>
+                    <Stack spacing={2.5}>
+                      {/* 型号 + 分类 */}
+                      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                        <TextField
+                          fullWidth
+                          label="型号 *"
+                          required
+                          value={editingProduct.model}
+                          onChange={(e: ChangeEvent<HTMLInputElement>) => handleFieldChange('model', e.target.value)}
+                          size="small"
+                          helperText="例如：X6 G06、E300 W213"
+                        />
+                        <Autocomplete
+                          fullWidth
+                          freeSolo
+                          size="small"
+                          options={editableCategories}
+                          getOptionLabel={(option) => {
+                            if (typeof option === 'string') return option;
+                            return option.label[lang];
+                          }}
+                          value={
+                            editableCategories.find((c) => c.id === editingProduct.category) ?? editingProduct.category
+                          }
+                          onChange={(event: SyntheticEvent, newValue: ProductCategory | string | null) => {
+                            if (newValue === null) {
+                              handleFieldChange('category', '');
+                            } else if (typeof newValue === 'string') {
+                              handleFieldChange('category', newValue);
+                            } else {
+                              handleFieldChange('category', newValue.id);
+                            }
+                          }}
+                          onInputChange={(event: SyntheticEvent, newInputValue: string) => {
+                            const matchedOption = editableCategories.find(
+                              (c) => c.label[lang] === newInputValue || c.id === newInputValue
+                            );
+                            if (!matchedOption && newInputValue) {
+                              handleFieldChange('category', newInputValue);
+                            }
+                          }}
+                          renderOption={(props, option) => {
+                            const { key, ...restProps } = props as unknown as Record<string, unknown>;
+                            const isCategory = typeof option !== 'string';
+                            const displayLabel = isCategory ? option.label[lang] : option;
+                            const logoSrc = isCategory ? option.logo : undefined;
+                            return (
+                              <li key={key as string} {...restProps as React.HTMLAttributes<HTMLLIElement>}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                  {logoSrc && (
+                                    <img
+                                      src={logoSrc}
+                                      alt={displayLabel}
+                                      style={{ width: 24, height: 24, objectFit: 'contain' }}
+                                    />
+                                  )}
+                                  <span>{displayLabel}</span>
+                                </Box>
+                              </li>
+                            );
+                          }}
+                          renderInput={(params) => (
+                            <TextField {...params} label="分类 *" helperText="输入或选择产品分类" />
+                          )}
+                        />
+                      </Stack>
+
+                      {/* 产品名称（多语言） */}
                       <LocalizedTextField
-                        label="SEO Meta Title"
-                        value={editingProduct.metaTitle || emptyLocalizedString()}
-                        onChange={(value) => handleFieldChange('metaTitle', value)}
+                        label="产品名称 *"
+                        required
+                        value={editingProduct.name}
+                        onChange={(value) => handleFieldChange('name', value)}
                         showActions={false}
                       />
-                      <LocalizedTextField
-                        label="SEO Meta Description"
-                        multiline
-                        rows={3}
-                        value={editingProduct.metaDescription || emptyLocalizedString()}
-                        onChange={(value) => handleFieldChange('metaDescription', value)}
-                        showActions={false}
-                      />
+
+                      {/* 产品图片 */}
+                      <Box>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <span>📷</span> 产品图片
+                          <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>
+                            （第一张为主图，最多5张）
+                          </Typography>
+                        </Typography>
+                        <MultiImageGallery
+                          images={editingProduct.images || (editingProduct.image ? [editingProduct.image] : [])}
+                          onChange={(newImages) => {
+                            handleFieldChange('image', newImages[0] || '');
+                            handleFieldChange('images', newImages);
+                          }}
+                        />
+                      </Box>
                     </Stack>
                   </AccordionDetails>
                 </Accordion>
 
-                {/* Applicable Models Accordion */}
-                <Accordion>
-                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                {/* ══════════════════════════════════════════════════════
+                    ③ 产品描述和SEO信息
+                    ══════════════════════════════════════════════════════ */}
+                <Accordion sx={{ mb: 2, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
+                  <AccordionSummary
+                    expandIcon={<ExpandMoreIcon />}
+                    sx={{ bgcolor: 'grey.50', borderRadius: 1 }}
+                  >
                     <Stack direction="row" spacing={1} alignItems="center">
-                      <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                        适用车型 ({editingProduct.applicableModels?.length || 0})
+                      <Chip label="②" size="small" color="primary" sx={{ fontWeight: 700, fontSize: '0.75rem' }} />
+                      <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                        产品描述和SEO信息
                       </Typography>
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        color="secondary"
-                        startIcon={aiGenerating === 'applicableModels' ? <CircularProgress size={16} color="inherit" /> : <SmartToyIcon />}
-                        onClick={(e) => {
-                          e.stopPropagation(); // Prevent accordion toggle
-                          handleAiFillModels();
-                        }}
-                        disabled={aiGenerating === 'applicableModels' || !editingProduct.name?.en && !editingProduct.model}
-                        sx={{ fontSize: '0.75rem', py: 0.3, px: 1.5, ml: 1 }}
-                      >
-                        AI自动补齐
-                      </Button>
                     </Stack>
                   </AccordionSummary>
-                  <AccordionDetails>
-                    <Stack spacing={2}>
-                      {(editingProduct.applicableModels || []).map((model, index) => (
-                        <Stack key={index} direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="center">
-                          <TextField
-                            label="品牌"
-                            value={model.brand}
-                            onChange={(e) => handleModelChange(index, 'brand', e.target.value)}
-                            size="small"
-                            sx={{ flex: 1 }}
+                  <AccordionDetails sx={{ pt: 2.5, pb: 2.5 }}>
+                    <Stack spacing={2.5}>
+                      {/* 产品描述（多语言） */}
+                      <LocalizedTextField
+                        label="产品描述"
+                        multiline
+                        rows={4}
+                        value={editingProduct.description}
+                        onChange={(value) => handleFieldChange('description', value)}
+                        showActions={false}
+                      />
+
+                      {/* SEO 信息 */}
+                      <Box>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <span>📈</span> SEO 优化
+                          <Tooltip title="SEO信息帮助Google正确收录您的产品页面，提高搜索排名">
+                            <Chip label="?" size="small" sx={{ ml: 0.5, cursor: 'help', fontSize: '0.7rem', height: 18 }} />
+                          </Tooltip>
+                        </Typography>
+                        <Stack spacing={2}>
+                          <LocalizedTextField
+                            label="SEO Meta 标题"
+                            value={editingProduct.metaTitle || emptyLocalizedString()}
+                            onChange={(value) => handleFieldChange('metaTitle', value)}
+                            showActions={false}
+                            helperText="建议长度：50-60字符，包含核心关键词"
+                          />
+                          <LocalizedTextField
+                            label="SEO Meta 描述"
+                            multiline
+                            rows={3}
+                            value={editingProduct.metaDescription || emptyLocalizedString()}
+                            onChange={(value) => handleFieldChange('metaDescription', value)}
+                            showActions={false}
+                            helperText="建议长度：150-160字符，概括产品卖点"
                           />
                           <TextField
-                            label="车型"
-                            value={model.model}
-                            onChange={(e) => handleModelChange(index, 'model', e.target.value)}
+                            fullWidth
+                            label="SEO 关键词"
+                            value={editingProduct.metaKeywords || ''}
+                            onChange={(e: ChangeEvent<HTMLInputElement>) => handleFieldChange('metaKeywords', e.target.value)}
                             size="small"
-                            sx={{ flex: 1 }}
+                            helperText="用逗号分隔多个关键词，例如：BMW X6 bumper, G06 front bumper"
                           />
-                          <TextField
-                            label="年份"
-                            value={model.year}
-                            onChange={(e) => handleModelChange(index, 'year', e.target.value)}
-                            size="small"
-                            sx={{ flex: 1 }}
-                          />
-                          <TextField
-                            label="发动机"
-                            value={model.engine || ''}
-                            onChange={(e) => handleModelChange(index, 'engine', e.target.value)}
-                            size="small"
-                            sx={{ flex: 1 }}
-                          />
-                          <IconButton onClick={() => handleRemoveModel(index)} color="error" size="small">
-                            <DeleteIcon />
-                          </IconButton>
+
+                          {/* SEO 预览卡片 */}
+                          {(editingProduct.metaTitle?.[lang] || editingProduct.name?.[lang]) && (
+                            <Paper variant="outlined" sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
+                              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, mb: 1, display: 'block' }}>
+                                📱 Google 搜索结果预览
+                              </Typography>
+                              <Box sx={{ maxWidth: 600 }}>
+                                <Typography
+                                  variant="body2"
+                                  sx={{
+                                    color: '#1a0dab',
+                                    fontSize: '1.1rem',
+                                    fontWeight: 400,
+                                    lineHeight: 1.3,
+                                    mb: 0.5,
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
+                                    cursor: 'pointer',
+                                    '&:hover': { textDecoration: 'underline' },
+                                  }}
+                                >
+                                  {editingProduct.metaTitle?.[lang] || editingProduct.name?.[lang] || '产品标题'}
+                                </Typography>
+                                <Typography
+                                  variant="caption"
+                                  sx={{
+                                    color: '#006621',
+                                    fontSize: '0.82rem',
+                                    lineHeight: 1.4,
+                                    mb: 0.5,
+                                    display: 'block',
+                                  }}
+                                >
+                                  altai.parts › {editingProduct.category || 'category'} › {editingProduct.model || 'model'}
+                                </Typography>
+                                <Typography
+                                  variant="caption"
+                                  sx={{
+                                    color: '#545454',
+                                    fontSize: '0.82rem',
+                                    lineHeight: 1.4,
+                                    display: '-webkit-box',
+                                    WebkitLineClamp: 2,
+                                    WebkitBoxOrient: 'vertical',
+                                    overflow: 'hidden',
+                                  }}
+                                >
+                                  {editingProduct.metaDescription?.[lang] || editingProduct.description?.[lang] || '产品描述将显示在这里...'}
+                                </Typography>
+                              </Box>
+                            </Paper>
+                          )}
                         </Stack>
+                      </Box>
+                    </Stack>
+                  </AccordionDetails>
+                </Accordion>
+
+                {/* ══════════════════════════════════════════════════════
+                    ④ 适用车型
+                    ══════════════════════════════════════════════════════ */}
+                <Accordion sx={{ mb: 2, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
+                  <AccordionSummary
+                    expandIcon={<ExpandMoreIcon />}
+                    sx={{ bgcolor: 'grey.50', borderRadius: 1 }}
+                  >
+                    <Stack direction="row" spacing={1} alignItems="center" flex={1}>
+                      <Chip label="③" size="small" color="primary" sx={{ fontWeight: 700, fontSize: '0.75rem' }} />
+                      <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                        适用车型
+                      </Typography>
+                      <Chip
+                        label={`${editingProduct.applicableModels?.length || 0} 个车型`}
+                        size="small"
+                        color="default"
+                        sx={{ ml: 1, fontSize: '0.72rem' }}
+                      />
+                    </Stack>
+                  </AccordionSummary>
+                  <AccordionDetails sx={{ pt: 2.5, pb: 2.5 }}>
+                    <Stack spacing={2}>
+                      {/* AI 自动识别按钮 - 更突出 */}
+                      <Paper
+                        variant="outlined"
+                        sx={{
+                          p: 2,
+                          bgcolor: '#f0f7ff',
+                          border: '1.5px dashed',
+                          borderColor: 'primary.light',
+                          borderRadius: 2,
+                        }}
+                      >
+                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems="center">
+                          <Typography variant="body2" sx={{ flex: 1, color: 'text.secondary' }}>
+                            根据产品名称和型号，AI 可自动识别适用的车型
+                          </Typography>
+                          <Button
+                            size="medium"
+                            variant="contained"
+                            color="primary"
+                            startIcon={aiGenerating === 'applicableModels' ? <CircularProgress size={18} color="inherit" /> : <SmartToyIcon />}
+                            onClick={handleAiFillModels}
+                            disabled={aiGenerating === 'applicableModels' || (!editingProduct.name?.en && !editingProduct.model)}
+                            sx={{
+                              textTransform: 'none',
+                              fontWeight: 700,
+                              borderRadius: 2,
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            🤖 AI 自动识别适用车型
+                          </Button>
+                        </Stack>
+                      </Paper>
+
+                      {/* 车型列表 */}
+                      {(editingProduct.applicableModels || []).map((model, index) => (
+                        <Paper key={index} variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+                          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="center">
+                            <Chip label={`#${index + 1}`} size="small" sx={{ fontSize: '0.7rem', height: 22 }} />
+                            <TextField
+                              label="品牌"
+                              value={model.brand}
+                              onChange={(e) => handleModelChange(index, 'brand', e.target.value)}
+                              size="small"
+                              sx={{ flex: 1 }}
+                            />
+                            <TextField
+                              label="车型"
+                              value={model.model}
+                              onChange={(e) => handleModelChange(index, 'model', e.target.value)}
+                              size="small"
+                              sx={{ flex: 1 }}
+                            />
+                            <TextField
+                              label="年份"
+                              value={model.year}
+                              onChange={(e) => handleModelChange(index, 'year', e.target.value)}
+                              size="small"
+                              sx={{ flex: 1 }}
+                            />
+                            <TextField
+                              label="发动机"
+                              value={model.engine || ''}
+                              onChange={(e) => handleModelChange(index, 'engine', e.target.value)}
+                              size="small"
+                              sx={{ flex: 1 }}
+                            />
+                            <IconButton onClick={() => handleRemoveModel(index)} color="error" size="small">
+                              <DeleteIcon />
+                            </IconButton>
+                          </Stack>
+                        </Paper>
                       ))}
+
+                      {/* 添加车型按钮 */}
                       <Button
                         startIcon={<AddIcon />}
                         onClick={handleAddModel}
                         variant="outlined"
-                        size="small"
-                        sx={{ alignSelf: 'flex-start' }}
+                        size="medium"
+                        sx={{ alignSelf: 'flex-start', textTransform: 'none', borderRadius: 2 }}
                       >
-                        添加车型
+                        手动添加车型
                       </Button>
                     </Stack>
                   </AccordionDetails>
                 </Accordion>
 
-                {/* Specifications Accordion */}
-                <Accordion>
-                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                      规格参数 ({Object.keys(editingProduct.specifications || {}).length})
-                    </Typography>
+                {/* ══════════════════════════════════════════════════════
+                    ⑤ 高级信息（选填）
+                    ══════════════════════════════════════════════════════ */}
+                <Accordion sx={{ mb: 2, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
+                  <AccordionSummary
+                    expandIcon={<ExpandMoreIcon />}
+                    sx={{ bgcolor: 'grey.50', borderRadius: 1 }}
+                  >
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <Chip label="④" size="small" color="default" sx={{ fontWeight: 700, fontSize: '0.75rem' }} />
+                      <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'text.secondary' }}>
+                        高级信息（选填）
+                      </Typography>
+                    </Stack>
                   </AccordionSummary>
-                  <AccordionDetails>
-                    <Stack spacing={2}>
-                      {Object.entries(editingProduct.specifications || {}).map(([key, value]) => (
-                        <Stack key={key} direction="row" spacing={1} alignItems="center">
-                          <TextField
-                            label="参数名"
-                            value={key}
-                            onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                              handleSpecChange(key, e.target.value, value)
-                            }
-                            size="small"
-                            sx={{ flex: 1 }}
-                          />
-                          <TextField
-                            label="参数值"
-                            value={value}
-                            onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                              handleSpecChange(key, key, e.target.value)
-                            }
-                            size="small"
-                            sx={{ flex: 1 }}
-                          />
-                          <IconButton onClick={() => handleRemoveSpec(key)} color="error" size="small">
-                            <DeleteIcon />
-                          </IconButton>
-                        </Stack>
-                      ))}
-                      <Button
-                        startIcon={<AddIcon />}
-                        onClick={handleAddSpec}
-                        variant="outlined"
+                  <AccordionDetails sx={{ pt: 2.5, pb: 2.5 }}>
+                    <Stack spacing={2.5}>
+                      {/* OEM 编号 */}
+                      <TextField
+                        fullWidth
+                        label="OEM 编号"
+                        value={editingProduct.oemNumber || ''}
+                        onChange={(e: ChangeEvent<HTMLInputElement>) => handleFieldChange('oemNumber', e.target.value)}
                         size="small"
-                        sx={{ alignSelf: 'flex-start' }}
-                      >
-                        添加规格
-                      </Button>
+                        helperText="多个编号用逗号分隔"
+                      />
+
+                      {/* 规格参数 */}
+                      <Box>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5 }}>
+                          规格参数 ({Object.keys(editingProduct.specifications || {}).length} 项)
+                        </Typography>
+                        <Stack spacing={1.5}>
+                          {Object.entries(editingProduct.specifications || {}).map(([key, value]) => (
+                            <Stack key={key} direction="row" spacing={1} alignItems="center">
+                              <TextField
+                                label="参数名"
+                                value={key}
+                                onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                                  handleSpecChange(key, e.target.value, value)
+                                }
+                                size="small"
+                                sx={{ flex: 1 }}
+                              />
+                              <TextField
+                                label="参数值"
+                                value={value}
+                                onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                                  handleSpecChange(key, key, e.target.value)
+                                }
+                                size="small"
+                                sx={{ flex: 1 }}
+                              />
+                              <IconButton onClick={() => handleRemoveSpec(key)} color="error" size="small">
+                                <DeleteIcon />
+                              </IconButton>
+                            </Stack>
+                          ))}
+                          <Button
+                            startIcon={<AddIcon />}
+                            onClick={handleAddSpec}
+                            variant="outlined"
+                            size="small"
+                            sx={{ alignSelf: 'flex-start', textTransform: 'none' }}
+                          >
+                            添加规格参数
+                          </Button>
+                        </Stack>
+                      </Box>
                     </Stack>
                   </AccordionDetails>
                 </Accordion>
