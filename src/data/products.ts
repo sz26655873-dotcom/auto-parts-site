@@ -49,6 +49,8 @@ export interface Product {
   metaTitle?: LocalizedString;
   /** Custom SEO meta description (localized). Falls back to description.en if absent. */
   metaDescription?: LocalizedString;
+  /** SEO meta keywords (comma-separated). */
+  metaKeywords?: string;
   /** Whether the product is featured on the homepage. */
   featured?: boolean;
   /** Display order on the homepage (lower = first). Managed via admin up/down arrows. */
