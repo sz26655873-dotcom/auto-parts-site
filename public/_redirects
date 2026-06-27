@@ -1,7 +1,3 @@
-# SPA fallback — 所有前端路由都由 React 处理
-# 注意：/sitemap.xml 是静态文件，不需要 Function 处理
-# 禁止使用 /* 通配符重定向到 /index.html，因为这会覆盖 Function 路由
-# Cloudflare Pages 的 _middleware.ts 已经通过 context.next() 处理了 SPA 回退
-
-# SPA 回退规则（必须保留，否则前端路由会 404）
-/* /index.html 200
+# SPA fallback — 由 _middleware.ts 的 context.next() 处理
+# 不要在此添加 /* 通配符重定向！它会覆盖 Cloudflare Functions 路由
+# 导致 /api/* 请求被错误地转发到 index.html 返回 HTML
