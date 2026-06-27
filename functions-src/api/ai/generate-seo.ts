@@ -607,41 +607,51 @@ export async function onRequestPost(context: any): Promise<Response> {
 
   // ─── Applicable Models: special handler (JSON output, not localized text) ────
   if (field === 'applicableModels') {
-    try {
-      const prompt = buildApplicableModelsPrompt(productInfo);
+    const prompt = buildApplicableModelsPrompt(productInfo);
+    const MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 
-      const aiResult: any = await context.env.AI.run(
-        '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
-        {
+    let lastError: string | null = null;
+    
+    // Retry up to 2 times (total 3 attempts) — Cloudflare AI can return transient IntermediateError
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const aiResult: any = await context.env.AI.run(MODEL, {
           messages: [
             {
               role: 'system',
-              content: 'You are an automotive compatibility database. You return ONLY valid JSON arrays of vehicle models. No explanations, no markdown, no text outside the JSON array. Every entry must be factually accurate — if you are not certain about a specific model/year/engine combination, do not include it.',
+              content: 'You are an automotive compatibility database. Return ONLY a valid JSON array of vehicle models. No explanations, no markdown, no text outside the JSON array.',
             },
             { role: 'user', content: prompt },
           ],
-          max_tokens: 2048,
-          temperature: 0.1, // Extremely low temp for factual accuracy
-        },
-      );
+          max_tokens: 1024,
+        });
 
-      let raw = (aiResult?.response || '').trim();
-      // Strip markdown code fences if present
-      raw = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '');
-      // Do NOT run cleanOutput on JSON — it's designed for text fields and would corrupt JSON
+        let raw = (aiResult?.response || '').trim();
+        // Strip markdown code fences if present
+        raw = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '');
+        // Do NOT run cleanOutput on JSON — it's designed for text fields and would corrupt JSON
 
-      const models = parseApplicableModels(raw, productInfo.category || '');
+        const models = parseApplicableModels(raw, productInfo.category || '');
 
-      return new Response(JSON.stringify({ models }), {
-        headers: { 'Content-Type': 'application/json' },
-      });
-    } catch (aiErr: any) {
-      console.error('[AI SEO] applicableModels AI error:', aiErr);
-      return new Response(JSON.stringify({ error: `AI车型识别失败: ${aiErr.message || 'Unknown error'}`, models: [] }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      });
+        return new Response(JSON.stringify({ models }), {
+          headers: { 'Content-Type': 'application/json' },
+        });
+      } catch (aiErr: any) {
+        lastError = aiErr?.message || aiErr?.toString() || String(aiErr);
+        console.error(`[AI SEO] applicableModels AI error (attempt ${attempt + 1}/3):`, lastError);
+        
+        // Don't retry on validation errors, only on transient network/AI errors
+        if (lastError.includes('validation') || lastError.includes('invalid')) break;
+        
+        // Brief wait before retry (only after first attempt)
+        if (attempt < 2) await new Promise(r => setTimeout(r, 500 * (attempt + 1)));
+      }
     }
+
+    return new Response(JSON.stringify({ error: `AI车型识别失败: ${lastError}`, models: [] }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 
   /** Run single AI generation for one language with post-processing validation. */

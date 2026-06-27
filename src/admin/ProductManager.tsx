@@ -393,33 +393,64 @@ function ProductManager(): JSX.Element {
         return res.json();
       };
 
-      const [descData, titleData, metaDescData, modelsData] = await Promise.all([
+      // Use allSettled so one field failing doesn't block others
+      const results = await Promise.allSettled([
         apiCall('description'),
         apiCall('metaTitle'),
         apiCall('metaDescription'),
         apiCall('applicableModels'),
       ]);
 
+      // Extract successful results, log failures
+      const descData = results[0].status === 'fulfilled' ? results[0].value : null;
+      const titleData = results[1].status === 'fulfilled' ? results[1].value : null;
+      const metaDescData = results[2].status === 'fulfilled' ? results[2].value : null;
+      const modelsData = results[3].status === 'fulfilled' ? results[3].value : null;
+
+      // Collect error messages from failed calls
+      const errors: string[] = [];
+      results.forEach((r, i) => {
+        if (r.status === 'rejected') {
+          const fieldNames: Record<number, string> = { 0: '描述', 1: '标题', 2: 'Meta描述', 3: '车型' };
+          errors.push(`${fieldNames[i]}: ${(r.reason as Error)?.message || '未知错误'}`);
+        }
+      });
+
       // Merge AI models with existing (dedup by brand+model+year)
-      const aiModels = (modelsData.models || []) as ApplicableModel[];
-      const existing = editingProduct.applicableModels || [];
-      const existingKeys = new Set(existing.map((m) => `${m.brand}|${m.model}|${m.year}`));
-      const newModels = aiModels.filter((m) => !existingKeys.has(`${m.brand}|${m.model}|${m.year}`));
-      const mergedModels = [...existing, ...newModels];
+      let mergedModels = editingProduct.applicableModels || [];
+      let newModelCount = 0;
+      if (modelsData?.models) {
+        const aiModels = modelsData.models as ApplicableModel[];
+        const existing = editingProduct.applicableModels || [];
+        const existingKeys = new Set(existing.map((m) => `${m.brand}|${m.model}|${m.year}`));
+        const newModels = aiModels.filter((m) => !existingKeys.has(`${m.brand}|${m.model}|${m.year}`));
+        mergedModels = [...existing, ...newModels];
+        newModelCount = newModels.length;
+      }
 
       setEditingProduct((prev) => prev ? {
         ...prev,
-        description: descData.text || prev.description,
-        metaTitle: titleData.text || prev.metaTitle,
-        metaDescription: metaDescData.text || prev.metaDescription,
-        applicableModels: mergedModels,
+        ...(descData?.text ? { description: descData.text } : {}),
+        ...(titleData?.text ? { metaTitle: titleData.text } : {}),
+        ...(metaDescData?.text ? { metaDescription: metaDescData.text } : {}),
+        ...(modelsData ? { applicableModels: mergedModels } : {}),
       } : prev);
 
-      setSnackbar({
-        open: true,
-        message: `SEO优化完成！描述+标题+Meta+${newModels.length}个车型已自动填充`,
-        severity: 'success',
-      });
+      // Show appropriate message based on how many fields succeeded
+      const successCount = [descData, titleData, metaDescData, modelsData].filter(Boolean).length;
+      if (successCount === 4) {
+        setSnackbar({
+          open: true,
+          message: `SEO优化完成！描述+标题+Meta+${newModelCount}个车型已自动填充`,
+          severity: 'success',
+        });
+      } else {
+        setSnackbar({
+          open: true,
+          message: `SEO优化部分完成（${successCount}/4 成功）${errors.length ? ` — ${errors.join('; ')}` : ''}`,
+          severity: 'success',
+        });
+      }
     } catch (err: any) {
       const msg = err.message || 'AI优化失败';
       setAiError(msg);
