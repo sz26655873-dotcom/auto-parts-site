@@ -607,33 +607,41 @@ export async function onRequestPost(context: any): Promise<Response> {
 
   // ─── Applicable Models: special handler (JSON output, not localized text) ────
   if (field === 'applicableModels') {
-    const prompt = buildApplicableModelsPrompt(productInfo);
+    try {
+      const prompt = buildApplicableModelsPrompt(productInfo);
 
-    const aiResult: any = await context.env.AI.run(
-      '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
-      {
-        messages: [
-          {
-            role: 'system',
-            content: 'You are an automotive compatibility database. You return ONLY valid JSON arrays of vehicle models. No explanations, no markdown, no text outside the JSON array. Every entry must be factually accurate — if you are not certain about a specific model/year/engine combination, do not include it.',
-          },
-          { role: 'user', content: prompt },
-        ],
-        max_tokens: 2048,
-        temperature: 0.1, // Extremely low temp for factual accuracy
-      },
-    );
+      const aiResult: any = await context.env.AI.run(
+        '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
+        {
+          messages: [
+            {
+              role: 'system',
+              content: 'You are an automotive compatibility database. You return ONLY valid JSON arrays of vehicle models. No explanations, no markdown, no text outside the JSON array. Every entry must be factually accurate — if you are not certain about a specific model/year/engine combination, do not include it.',
+            },
+            { role: 'user', content: prompt },
+          ],
+          max_tokens: 2048,
+          temperature: 0.1, // Extremely low temp for factual accuracy
+        },
+      );
 
-    let raw = (aiResult?.response || '').trim();
-    // Strip markdown code fences if present
-    raw = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '');
-    // Do NOT run cleanOutput on JSON — it's designed for text fields and would corrupt JSON
+      let raw = (aiResult?.response || '').trim();
+      // Strip markdown code fences if present
+      raw = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '');
+      // Do NOT run cleanOutput on JSON — it's designed for text fields and would corrupt JSON
 
-    const models = parseApplicableModels(raw, productInfo.category || '');
+      const models = parseApplicableModels(raw, productInfo.category || '');
 
-    return new Response(JSON.stringify({ models }), {
-      headers: { 'Content-Type': 'application/json' },
-    });
+      return new Response(JSON.stringify({ models }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    } catch (aiErr: any) {
+      console.error('[AI SEO] applicableModels AI error:', aiErr);
+      return new Response(JSON.stringify({ error: `AI车型识别失败: ${aiErr.message || 'Unknown error'}`, models: [] }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
   }
 
   /** Run single AI generation for one language with post-processing validation. */
