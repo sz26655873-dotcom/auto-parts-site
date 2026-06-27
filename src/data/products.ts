@@ -5,9 +5,22 @@
  */
 
 import type { Language } from '../i18n/translations';
+import { generateSlug } from '../utils/slug';
 
 /** A string localized into all supported languages. */
 export type LocalizedString = Record<Language, string>;
+
+/** A vehicle model that a product is applicable to. */
+export interface ApplicableModel {
+  /** Vehicle brand (e.g. "Toyota", "BMW"). */
+  brand: string;
+  /** Vehicle model (e.g. "Camry", "X5"). */
+  model: string;
+  /** Year range or single year (e.g. "2018-2023"). */
+  year: string;
+  /** Optional engine specification (e.g. "2.0L Turbo"). */
+  engine?: string;
+}
 
 export interface Product {
   id: number;
@@ -16,14 +29,40 @@ export interface Product {
   category: string;
   image: string;
   description: LocalizedString;
+  /** URL-friendly slug for routing (e.g. "engine-chg-2024"). */
+  slug: string;
+  /** OEM part number for cross-reference. */
+  oemNumber?: string;
+  /** Additional product images (gallery). Falls back to [image] if absent. */
+  images?: string[];
+  /** Vehicle models this product fits. */
+  applicableModels?: ApplicableModel[];
+  /** Key-value specification pairs (e.g. { Material: "Steel" }). */
+  specifications?: Record<string, string>;
+  /** Minimum order quantity. */
+  moq?: number;
+  /** Packaging description. */
+  packaging?: string;
+  /** Lead time description. */
+  leadTime?: string;
+  /** Custom SEO meta title (localized). Falls back to name + model if absent. */
+  metaTitle?: LocalizedString;
+  /** Custom SEO meta description (localized). Falls back to description.en if absent. */
+  metaDescription?: LocalizedString;
+  /** Whether the product is featured on the homepage. */
+  featured?: boolean;
+  /** Display order on the homepage (lower = first). Managed via admin up/down arrows. */
+  sortOrder?: number;
 }
 
 export interface ProductCategory {
   id: string;
   label: LocalizedString;
+  /** Brand logo image path (the "all" category does not need a logo). */
+  logo?: string;
 }
 
-/** Category filter options displayed as tabs in the Products section. */
+/** Brand filter options displayed as tabs in the Products section. */
 export const productCategories: ProductCategory[] = [
   {
     id: 'all',
@@ -36,63 +75,157 @@ export const productCategories: ProductCategory[] = [
     },
   },
   {
-    id: 'engine',
+    id: 'bmw',
+    logo: '/images/hero/logos/bmw.png',
     label: {
-      en: 'Engine Parts',
-      zh: '发动机配件',
-      ru: 'Детали двигателя',
-      ar: 'قطع محرك',
-      ko: '엔진 부품',
+      en: 'BMW',
+      zh: '宝马',
+      ru: 'BMW',
+      ar: 'بي إم دبليو',
+      ko: 'BMW',
     },
   },
   {
-    id: 'brake',
+    id: 'mercedes',
+    logo: '/images/hero/logos/mercedes-benz.png',
     label: {
-      en: 'Brake System',
-      zh: '刹车系统',
-      ru: 'Тормозная система',
-      ar: 'نظام الفرامل',
-      ko: '브레이크 시스템',
+      en: 'Mercedes-Benz',
+      zh: '奔驰',
+      ru: 'Mercedes-Benz',
+      ar: 'مرسيدس بنز',
+      ko: '메르세데스 벤츠',
     },
   },
   {
-    id: 'suspension',
+    id: 'audi',
+    logo: '/images/hero/logos/audi.png',
     label: {
-      en: 'Suspension',
-      zh: '悬挂系统',
-      ru: 'Подвеска',
-      ar: 'نظام التعليق',
-      ko: '서스펜션',
+      en: 'Audi',
+      zh: '奥迪',
+      ru: 'Audi',
+      ar: 'أودي',
+      ko: '아우디',
     },
   },
   {
-    id: 'electrical',
+    id: 'porsche',
+    logo: '/images/hero/logos/porsche.png',
     label: {
-      en: 'Electrical',
-      zh: '电气系统',
-      ru: 'Электрика',
-      ar: 'كهربائي',
-      ko: '전기 부품',
+      en: 'Porsche',
+      zh: '保时捷',
+      ru: 'Porsche',
+      ar: 'بورش',
+      ko: '포르쉐',
     },
   },
   {
-    id: 'body',
+    id: 'landrover',
+    logo: '/images/hero/logos/landrover.svg',
     label: {
-      en: 'Body Parts',
-      zh: '车身配件',
-      ru: 'Кузовные детали',
-      ar: 'قطع غيار الهيكل',
-      ko: '차체 부품',
+      en: 'Land Rover',
+      zh: '路虎',
+      ru: 'Land Rover',
+      ar: 'لاند روفر',
+      ko: '랜드 로버',
     },
   },
   {
-    id: 'filters',
+    id: 'volkswagen',
+    logo: '/images/hero/logos/volkswagen.png',
     label: {
-      en: 'Filters',
-      zh: '滤清器',
-      ru: 'Фильтры',
-      ar: 'فلاتر',
-      ko: '필터',
+      en: 'Volkswagen',
+      zh: '大众',
+      ru: 'Volkswagen',
+      ar: 'فولكس فاغن',
+      ko: '폭스바겐',
+    },
+  },
+  {
+    id: 'volvo',
+    logo: '/images/hero/logos/volvo.png',
+    label: {
+      en: 'Volvo',
+      zh: '沃尔沃',
+      ru: 'Volvo',
+      ar: 'فولفو',
+      ko: '볼보',
+    },
+  },
+  {
+    id: 'ferrari',
+    logo: '/images/hero/logos/ferrari.png',
+    label: {
+      en: 'Ferrari',
+      zh: '法拉利',
+      ru: 'Ferrari',
+      ar: 'فيراري',
+      ko: '페라리',
+    },
+  },
+  {
+    id: 'lamborghini',
+    logo: '/images/hero/logos/lamborghini.png',
+    label: {
+      en: 'Lamborghini',
+      zh: '兰博基尼',
+      ru: 'Lamborghini',
+      ar: 'لامبورغيني',
+      ko: '람보르기니',
+    },
+  },
+  {
+    id: 'bentley',
+    logo: '/images/hero/logos/bentley.png',
+    label: {
+      en: 'Bentley',
+      zh: '宾利',
+      ru: 'Bentley',
+      ar: 'بينتلي',
+      ko: '벤틀리',
+    },
+  },
+  {
+    id: 'rollsroyce',
+    logo: '/images/hero/logos/rolls-royce.png',
+    label: {
+      en: 'Rolls-Royce',
+      zh: '劳斯莱斯',
+      ru: 'Rolls-Royce',
+      ar: 'رويز رويس',
+      ko: '롤스로이스',
+    },
+  },
+  {
+    id: 'lexus',
+    logo: '/images/hero/logos/lexus.png',
+    label: {
+      en: 'Lexus',
+      zh: '雷克萨斯',
+      ru: 'Lexus',
+      ar: 'لكزس',
+      ko: '렉서스',
+    },
+  },
+  {
+    id: 'lincoln',
+    logo: '/images/hero/logos/lincoln.png',
+    label: {
+      en: 'Lincoln',
+      zh: '林肯',
+      ru: 'Lincoln',
+      ar: 'لنكولن',
+      ko: '링컨',
+    },
+  },
+  {
+    id: 'xiaomi',
+    logo: '/images/hero/logos/xiaomi-logo.jpeg',
+    label: {
+      en: 'Xiaomi',
+      zh: '小米',
+      ru: 'Xiaomi',
+      ar: 'شاومي',
+      ko: '샤오미',
     },
   },
 ];
@@ -102,8 +235,19 @@ export const products: Product[] = [
   {
     id: 1,
     model: 'CHG-2024',
-    category: 'engine',
+    category: 'bmw',
     image: 'https://picsum.photos/seed/engine1/400/300',
+    slug: generateSlug('engine', 'CHG-2024'),
+    oemNumber: 'OEM-90919-02231',
+    specifications: { Material: 'MLS Steel', Thickness: '1.2mm', Temperature: '-40°C to 250°C' },
+    moq: 100,
+    packaging: 'Carton box, 50 pcs/carton',
+    leadTime: '15-30 days',
+    featured: true,
+    applicableModels: [
+      { brand: 'Toyota', model: 'Camry', year: '2018-2023', engine: '2.5L' },
+      { brand: 'Toyota', model: 'RAV4', year: '2019-2023', engine: '2.5L' },
+    ],
     name: {
       en: 'Cylinder Head Gasket',
       zh: '气缸盖垫片',
@@ -122,8 +266,15 @@ export const products: Product[] = [
   {
     id: 2,
     model: 'PRS-1850',
-    category: 'engine',
+    category: 'bmw',
     image: 'https://picsum.photos/seed/engine2/400/300',
+    slug: generateSlug('engine', 'PRS-1850'),
+    oemNumber: 'OEM-13011-2A000',
+    specifications: { Material: 'Chrome Steel', 'Ring Count': '3 per piston', 'Top Ring Width': '1.5mm' },
+    moq: 200,
+    packaging: 'Carton box, 100 sets/carton',
+    leadTime: '15-30 days',
+    featured: true,
     name: {
       en: 'Piston Ring Set',
       zh: '活塞环组',
@@ -142,8 +293,14 @@ export const products: Product[] = [
   {
     id: 3,
     model: 'ETB-3000',
-    category: 'engine',
+    category: 'bmw',
     image: 'https://picsum.photos/seed/engine3/400/300',
+    slug: generateSlug('engine', 'ETB-3000'),
+    oemNumber: 'OEM-13540-0T010',
+    specifications: { Material: 'Rubber + Kevlar', Teeth: '153', Width: '25mm' },
+    moq: 50,
+    packaging: 'Individual box',
+    leadTime: '15-30 days',
     name: {
       en: 'Engine Timing Belt',
       zh: '发动机正时皮带',
@@ -162,8 +319,19 @@ export const products: Product[] = [
   {
     id: 4,
     model: 'BPS-4400',
-    category: 'brake',
+    category: 'bmw',
     image: 'https://picsum.photos/seed/brake1/400/300',
+    slug: generateSlug('chassis', 'BPS-4400'),
+    oemNumber: 'OEM-04465-0E020',
+    specifications: { Material: 'Ceramic Compound', 'Friction Coeff': '0.42', 'Operating Temp': '-40°C to 600°C' },
+    moq: 100,
+    packaging: 'Carton box, 20 sets/carton',
+    leadTime: '10-25 days',
+    featured: true,
+    applicableModels: [
+      { brand: 'Honda', model: 'Civic', year: '2016-2021', engine: '1.5L Turbo' },
+      { brand: 'Honda', model: 'Accord', year: '2018-2022', engine: '1.5L Turbo' },
+    ],
     name: {
       en: 'Brake Pad Set',
       zh: '刹车片组',
@@ -182,8 +350,14 @@ export const products: Product[] = [
   {
     id: 5,
     model: 'BDR-5500',
-    category: 'brake',
+    category: 'bmw',
     image: 'https://picsum.photos/seed/brake2/400/300',
+    slug: generateSlug('chassis', 'BDR-5500'),
+    oemNumber: 'OEM-43512-0W010',
+    specifications: { Material: 'Cast Iron', Diameter: '280mm', 'Vented': 'Yes' },
+    moq: 50,
+    packaging: 'Individual box with rust protection',
+    leadTime: '10-25 days',
     name: {
       en: 'Brake Disc Rotor',
       zh: '刹车盘',
@@ -202,8 +376,14 @@ export const products: Product[] = [
   {
     id: 6,
     model: 'BC-6600',
-    category: 'brake',
+    category: 'bmw',
     image: 'https://picsum.photos/seed/brake3/400/300',
+    slug: generateSlug('chassis', 'BC-6600'),
+    oemNumber: 'OEM-19-B2620-0A',
+    specifications: { Material: 'Aluminum Alloy', Piston: '4-piston', 'Mount Type': 'Bracket mount' },
+    moq: 30,
+    packaging: 'Individual box',
+    leadTime: '20-35 days',
     name: {
       en: 'Brake Caliper',
       zh: '刹车卡钳',
@@ -222,8 +402,19 @@ export const products: Product[] = [
   {
     id: 7,
     model: 'SA-7700',
-    category: 'suspension',
+    category: 'bmw',
     image: 'https://picsum.photos/seed/susp1/400/300',
+    slug: generateSlug('chassis', 'SA-7700'),
+    oemNumber: 'OEM-48530-09K90',
+    specifications: { Type: 'Gas-charged', 'Stroke Length': '200mm', 'Mount Type': 'Eye/Pin' },
+    moq: 50,
+    packaging: 'Individual box',
+    leadTime: '15-30 days',
+    featured: true,
+    applicableModels: [
+      { brand: 'Nissan', model: 'Altima', year: '2013-2019', engine: '2.5L' },
+      { brand: 'Nissan', model: 'Sentra', year: '2014-2019', engine: '1.8L' },
+    ],
     name: {
       en: 'Shock Absorber',
       zh: '减震器',
@@ -242,8 +433,14 @@ export const products: Product[] = [
   {
     id: 8,
     model: 'CS-8800',
-    category: 'suspension',
+    category: 'bmw',
     image: 'https://picsum.photos/seed/susp2/400/300',
+    slug: generateSlug('chassis', 'CS-8800'),
+    oemNumber: 'OEM-54041-1JA0A',
+    specifications: { Material: 'Spring Steel', 'Wire Diameter': '14mm', 'Free Length': '350mm' },
+    moq: 50,
+    packaging: 'Bundle, 10 pcs/bundle',
+    leadTime: '15-30 days',
     name: {
       en: 'Coil Spring',
       zh: '螺旋弹簧',
@@ -262,8 +459,14 @@ export const products: Product[] = [
   {
     id: 9,
     model: 'CA-9900',
-    category: 'suspension',
+    category: 'bmw',
     image: 'https://picsum.photos/seed/susp3/400/300',
+    slug: generateSlug('chassis', 'CA-9900'),
+    oemNumber: 'OEM-54500-2A000',
+    specifications: { Material: 'Forged Steel', Type: 'Lower control arm', Bushings: 'Included' },
+    moq: 30,
+    packaging: 'Individual box',
+    leadTime: '20-35 days',
     name: {
       en: 'Control Arm',
       zh: '控制臂',
@@ -282,8 +485,19 @@ export const products: Product[] = [
   {
     id: 10,
     model: 'ALT-1100',
-    category: 'electrical',
+    category: 'bmw',
     image: 'https://picsum.photos/seed/elec1/400/300',
+    slug: generateSlug('electrical', 'ALT-1100'),
+    oemNumber: 'OEM-27060-0V100',
+    specifications: { Output: '150A', Voltage: '12V', Type: 'Internal fan cooled' },
+    moq: 30,
+    packaging: 'Individual box with foam protection',
+    leadTime: '15-30 days',
+    featured: true,
+    applicableModels: [
+      { brand: 'Hyundai', model: 'Elantra', year: '2017-2022', engine: '1.6L' },
+      { brand: 'Kia', model: 'Forte', year: '2017-2022', engine: '1.6L' },
+    ],
     name: {
       en: 'Alternator',
       zh: '发电机',
@@ -302,8 +516,14 @@ export const products: Product[] = [
   {
     id: 11,
     model: 'SM-2200',
-    category: 'electrical',
+    category: 'bmw',
     image: 'https://picsum.photos/seed/elec2/400/300',
+    slug: generateSlug('electrical', 'SM-2200'),
+    oemNumber: 'OEM-28100-0T100',
+    specifications: { Voltage: '12V', Power: '1.4kW', Teeth: '10T' },
+    moq: 30,
+    packaging: 'Individual box',
+    leadTime: '15-30 days',
     name: {
       en: 'Starter Motor',
       zh: '起动机',
@@ -322,8 +542,15 @@ export const products: Product[] = [
   {
     id: 12,
     model: 'IC-3300',
-    category: 'electrical',
+    category: 'bmw',
     image: 'https://picsum.photos/seed/elec3/400/300',
+    slug: generateSlug('electrical', 'IC-3300'),
+    oemNumber: 'OEM-27300-0T010',
+    specifications: { Type: 'Ignition Coil', 'Primary Resistance': '0.5Ω', 'Secondary Resistance': '8.5kΩ' },
+    moq: 100,
+    packaging: 'Carton box, 50 pcs/carton',
+    leadTime: '10-25 days',
+    featured: true,
     name: {
       en: 'Ignition Coil',
       zh: '点火线圈',
@@ -342,8 +569,14 @@ export const products: Product[] = [
   {
     id: 13,
     model: 'FB-4400',
-    category: 'body',
+    category: 'bmw',
     image: 'https://picsum.photos/seed/body1/400/300',
+    slug: generateSlug('body', 'FB-4400'),
+    oemNumber: 'OEM-52119-1AA00',
+    specifications: { Material: 'ABS Plastic + Steel Reinforcement', Finish: 'Primed', 'Mount Type': 'Bolt-on' },
+    moq: 20,
+    packaging: 'Wooden crate with foam',
+    leadTime: '20-40 days',
     name: {
       en: 'Front Bumper',
       zh: '前保险杠',
@@ -362,8 +595,15 @@ export const products: Product[] = [
   {
     id: 14,
     model: 'SM-5500',
-    category: 'body',
+    category: 'bmw',
     image: 'https://picsum.photos/seed/body2/400/300',
+    slug: generateSlug('body', 'SM-5500'),
+    oemNumber: 'OEM-87910-1AA00',
+    specifications: { Type: 'Electric with turn signal', 'Mirror Color': 'Paintable', Adjustment: 'Power' },
+    moq: 30,
+    packaging: 'Individual box with foam',
+    leadTime: '20-35 days',
+    featured: true,
     name: {
       en: 'Side Mirror',
       zh: '后视镜',
@@ -382,8 +622,15 @@ export const products: Product[] = [
   {
     id: 15,
     model: 'OF-6600',
-    category: 'filters',
+    category: 'bmw',
     image: 'https://picsum.photos/seed/filter1/400/300',
+    slug: generateSlug('engine', 'OF-6600'),
+    oemNumber: 'OEM-90915-YZZD4',
+    specifications: { Type: 'Spin-on oil filter', 'Thread Size': 'M20x1.5', 'Bypass Valve': '13 PSI' },
+    moq: 200,
+    packaging: 'Carton box, 100 pcs/carton',
+    leadTime: '7-20 days',
+    featured: true,
     name: {
       en: 'Oil Filter',
       zh: '机油滤清器',
@@ -402,8 +649,15 @@ export const products: Product[] = [
   {
     id: 16,
     model: 'AF-7700',
-    category: 'filters',
+    category: 'bmw',
     image: 'https://picsum.photos/seed/filter2/400/300',
+    slug: generateSlug('engine', 'AF-7700'),
+    oemNumber: 'OEM-17801-0H050',
+    specifications: { Type: 'Panel air filter', 'Filter Area': '1200 cm²', 'Efficiency': '99.5%' },
+    moq: 200,
+    packaging: 'Carton box, 100 pcs/carton',
+    leadTime: '7-20 days',
+    featured: true,
     name: {
       en: 'Air Filter',
       zh: '空气滤清器',

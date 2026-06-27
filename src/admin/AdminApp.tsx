@@ -24,6 +24,9 @@ import ProductManager from './ProductManager';
 import ContactManager from './ContactManager';
 import CompanyManager from './CompanyManager';
 import DataManager from './DataManager';
+import InquiryManager from './InquiryManager';
+import AnalyticsManager from './AnalyticsManager';
+import BulkUpload from './BulkUpload';
 
 /**
  * Renders the admin route tree. Should be mounted inside the main
@@ -47,10 +50,13 @@ function AdminApp(): JSX.Element {
       <Route element={<ProtectedRoute />}>
         <Route element={<AdminLayout />}>
           <Route path="dashboard" element={<Dashboard />} />
+          <Route path="inquiries" element={<InquiryManager />} />
           <Route path="products" element={<ProductManager />} />
+          <Route path="bulk-upload" element={<BulkUpload />} />
           <Route path="contact" element={<ContactManager />} />
           <Route path="company" element={<CompanyManager />} />
           <Route path="data" element={<DataManager />} />
+          <Route path="analytics" element={<AnalyticsManager />} />
         </Route>
       </Route>
 

@@ -20,6 +20,7 @@ import { useLanguage } from '../i18n/LanguageContext';
 import { useAdminData } from '../admin/AdminDataContext';
 import { buildWhatsAppLinkForLang } from '../utils/whatsapp';
 import WeChatDialog from './WeChatDialog';
+import WhatsAppDialog from './WhatsAppDialog';
 
 /** Contact info items with icon, label key, and value. */
 interface ContactInfoItem {
@@ -36,14 +37,22 @@ function Contact(): JSX.Element {
   const { t, lang } = useLanguage();
   const { contactInfo } = useAdminData();
   const [wechatOpen, setWechatOpen] = useState<boolean>(false);
+  const [whatsappOpen, setWhatsappOpen] = useState<boolean>(false);
   const [formSubmitted, setFormSubmitted] = useState<boolean>(false);
+  const [formError, setFormError] = useState<boolean>(false);
+  const [submitting, setSubmitting] = useState<boolean>(false);
   const [formData, setFormData] = useState({
     name: '',
+    phone: '',
     email: '',
     message: '',
   });
 
   /** Contact info items built from the admin-managed contact data. */
+  const addressValue = (contactInfo.address && typeof contactInfo.address === 'object')
+    ? contactInfo.address[lang] || t('contact.addressValue')
+    : (contactInfo.address || t('contact.addressValue'));
+
   const contactItems: ContactInfoItem[] = [
     {
       icon: <EmailIcon />,
@@ -58,7 +67,7 @@ function Contact(): JSX.Element {
     {
       icon: <LocationOnIcon />,
       labelKey: 'contact.address',
-      value: contactInfo.address[lang],
+      value: addressValue,
     },
   ];
 
@@ -68,16 +77,34 @@ function Contact(): JSX.Element {
     setFormData((prev) => ({ ...prev, [field]: event.target.value }));
   };
 
-  const handleSubmit = (event: FormEvent): void => {
+  const handleSubmit = async (event: FormEvent): Promise<void> => {
     event.preventDefault();
-    // In production this would POST to a backend API.
-    setFormSubmitted(true);
-    setFormData({ name: '', email: '', message: '' });
+    setSubmitting(true);
+    setFormError(false);
+    setFormSubmitted(false);
+
+    try {
+      const response = await fetch('/api/inquiry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      setFormSubmitted(true);
+      setFormData({ name: '', phone: '', email: '', message: '' });
+    } catch {
+      setFormError(true);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
     <Box
-      id="contact"
       sx={{
         py: { xs: 8, md: 12 },
         backgroundColor: '#0A2342',
@@ -117,24 +144,91 @@ function Contact(): JSX.Element {
               >
                 {t('contact.whatsappBtn')}
               </Button>
-              <Button
-                variant="outlined"
-                size="large"
-                onClick={() => setWechatOpen(true)}
-                startIcon={<QrCodeIcon />}
-                sx={{
-                  py: 1.5,
-                  fontSize: '1.05rem',
-                  color: '#fff',
-                  borderColor: 'rgba(255,255,255,0.4)',
-                  '&:hover': {
-                    borderColor: '#fff',
-                    backgroundColor: 'rgba(255,255,255,0.1)',
-                  },
-                }}
-              >
-                {t('contact.wechatBtn')}
-              </Button>
+              {/* QR codes side by side, full width to align with divider */}
+              <Stack direction={{ xs: 'column', md: 'row' }} spacing={{ xs: 2, md: 6 }} sx={{ width: '100%' }}>
+              {contactInfo.whatsappQrImage && (
+                <Box
+                  sx={{
+                    flex: 1,
+                    backgroundColor: 'rgba(255,255,255,0.08)',
+                    border: '1px solid rgba(255,255,255,0.15)',
+                    borderRadius: 2,
+                    p: 2,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                  }}
+                >
+                  <Typography
+                    variant="body2"
+                    sx={{ color: 'rgba(255,255,255,0.7)', mb: 1, fontWeight: 600 }}
+                  >
+                    {t('whatsapp.title')}
+                  </Typography>
+                  <Box
+                    sx={{
+                      width: { xs: 140, md: 180 },
+                      height: { xs: 140, md: 180 },
+                      backgroundColor: '#fff',
+                      borderRadius: 1.5,
+                      padding: 1,
+                      overflow: 'hidden',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Box
+                      component="img"
+                      src={contactInfo.whatsappQrImage}
+                      alt={t('whatsapp.title')}
+                      sx={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+                    />
+                  </Box>
+                </Box>
+              )}
+              {contactInfo.wechatQrImage && (
+                <Box
+                  sx={{
+                    flex: 1,
+                    backgroundColor: 'rgba(255,255,255,0.08)',
+                    border: '1px solid rgba(255,255,255,0.15)',
+                    borderRadius: 2,
+                    p: 2,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                  }}
+                >
+                  <Typography
+                    variant="body2"
+                    sx={{ color: 'rgba(255,255,255,0.7)', mb: 1, fontWeight: 600 }}
+                  >
+                    {t('wechat.title')}
+                  </Typography>
+                  <Box
+                    sx={{
+                      width: { xs: 140, md: 180 },
+                      height: { xs: 140, md: 180 },
+                      backgroundColor: '#fff',
+                      borderRadius: 1.5,
+                      padding: 1,
+                      overflow: 'hidden',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Box
+                      component="img"
+                      src={contactInfo.wechatQrImage}
+                      alt={t('wechat.title')}
+                      sx={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+                    />
+                  </Box>
+                </Box>
+              )}
+              </Stack>
             </Stack>
 
             <Divider sx={{ borderColor: 'rgba(255,255,255,0.15)', my: 3 }} />
@@ -192,6 +286,11 @@ function Contact(): JSX.Element {
                   {t('contact.formSuccess')}
                 </Alert>
               )}
+              {formError && (
+                <Alert severity="error" sx={{ mb: 2 }}>
+                  {t('contact.formError')}
+                </Alert>
+              )}
 
               <Box component="form" onSubmit={handleSubmit}>
                 <TextField
@@ -202,6 +301,17 @@ function Contact(): JSX.Element {
                   onChange={handleInputChange('name')}
                   margin="normal"
                   variant="outlined"
+                  disabled={submitting}
+                />
+                <TextField
+                  fullWidth
+                  required
+                  label={t('contact.formPhone')}
+                  value={formData.phone}
+                  onChange={handleInputChange('phone')}
+                  margin="normal"
+                  variant="outlined"
+                  disabled={submitting}
                 />
                 <TextField
                   fullWidth
@@ -212,6 +322,7 @@ function Contact(): JSX.Element {
                   onChange={handleInputChange('email')}
                   margin="normal"
                   variant="outlined"
+                  disabled={submitting}
                 />
                 <TextField
                   fullWidth
@@ -223,6 +334,7 @@ function Contact(): JSX.Element {
                   onChange={handleInputChange('message')}
                   margin="normal"
                   variant="outlined"
+                  disabled={submitting}
                 />
                 <Button
                   type="submit"
@@ -230,9 +342,10 @@ function Contact(): JSX.Element {
                   variant="contained"
                   color="primary"
                   size="large"
+                  disabled={submitting}
                   sx={{ mt: 2, py: 1.5 }}
                 >
-                  {t('contact.formSubmit')}
+                  {submitting ? t('contact.formSending') : t('contact.formSubmit')}
                 </Button>
               </Box>
             </Paper>
@@ -241,6 +354,7 @@ function Contact(): JSX.Element {
       </Container>
 
       <WeChatDialog open={wechatOpen} onClose={() => setWechatOpen(false)} />
+      <WhatsAppDialog open={whatsappOpen} onClose={() => setWhatsappOpen(false)} />
     </Box>
   );
 }

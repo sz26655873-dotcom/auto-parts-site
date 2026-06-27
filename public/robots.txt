@@ -1,0 +1,13 @@
+# robots.txt — Altai Auto Parts
+# Allow all search engines to crawl the entire site
+
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /admin/
+
+# Block API endpoints from indexing
+Disallow: /api/
+
+# Sitemap location
+Sitemap: https://www.altai.parts/sitemap.xml

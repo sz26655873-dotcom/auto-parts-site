@@ -5,9 +5,13 @@
  * language), model, category, and action buttons. Supports adding new
  * products, editing existing ones (with multi-language tabs for name and
  * description), and deleting with a confirmation dialog.
+ *
+ * Also includes an SEO fields panel (metaTitle, metaDescription, oemNumber),
+ * an applicable models editor, and
+ * a specifications key-value editor.
  */
 
-import { useState, type ChangeEvent, type FormEvent } from 'react';
+import { useState, type ChangeEvent, type FormEvent, type SyntheticEvent } from 'react';
 import {
   Box,
   Typography,
@@ -25,7 +29,6 @@ import {
   DialogContent,
   DialogActions,
   TextField,
-  Select,
   MenuItem,
   InputLabel,
   FormControl,
@@ -34,15 +37,33 @@ import {
   Tooltip,
   Alert,
   Stack,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  Switch,
+  Divider,
+  CircularProgress,
+  Snackbar,
 } from '@mui/material';
+import Autocomplete from '@mui/material/Autocomplete';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import SmartToyIcon from '@mui/icons-material/SmartToy';
+import SyncIcon from '@mui/icons-material/Sync';
+import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useAdminData } from './AdminDataContext';
-import { productCategories, type Product } from '../data/products';
-import { emptyLocalizedString } from './adminStorage';
+import { productCategories, type Product, type ProductCategory, type ApplicableModel, type LocalizedString } from '../data/products';
+import { emptyLocalizedString, getAuthToken } from './adminStorage';
+import { generateSlug } from '../utils/slug';
+import { translateLocalizedString } from '../utils/translator';
+import type { Language } from '../i18n/translations';
 import LocalizedTextField from './LocalizedTextField';
+import MultiImageGallery from './MultiImageGallery';
 
 /**
  * Creates a new blank product with a unique ID.
@@ -50,13 +71,23 @@ import LocalizedTextField from './LocalizedTextField';
  */
 function createBlankProduct(existingProducts: Product[]): Product {
   const maxId = existingProducts.reduce((max, p) => Math.max(max, p.id), 0);
+  const maxSortOrder = existingProducts.reduce((max, p) => Math.max(max, p.sortOrder ?? 0), 0);
   return {
     id: maxId + 1,
     model: '',
-    category: 'engine',
+    category: 'bmw',
     image: '',
     name: emptyLocalizedString(),
     description: emptyLocalizedString(),
+    slug: '',
+    oemNumber: '',
+    images: [],
+    applicableModels: [],
+    specifications: {},
+    metaTitle: undefined,
+    metaDescription: undefined,
+    featured: false,
+    sortOrder: maxSortOrder + 1,
   };
 }
 
@@ -71,6 +102,14 @@ function ProductManager(): JSX.Element {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
   const [error, setError] = useState<string>('');
+  const [saving, setSaving] = useState<boolean>(false);
+  const [aiGenerating, setAiGenerating] = useState<string | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
+    open: false,
+    message: '',
+    severity: 'success',
+  });
 
   /** Product categories excluding the "all" filter. */
   const editableCategories = productCategories.filter((c) => c.id !== 'all');
@@ -84,7 +123,12 @@ function ProductManager(): JSX.Element {
 
   /** Opens the edit dialog for an existing product. */
   const handleEdit = (product: Product): void => {
-    setEditingProduct({ ...product });
+    setEditingProduct({
+      ...product,
+      applicableModels: product.applicableModels ? [...product.applicableModels] : [],
+      specifications: { ...(product.specifications || {}) },
+      images: product.images ? [...product.images] : [product.image],
+    });
     setError('');
     setEditOpen(true);
   };
@@ -95,45 +139,293 @@ function ProductManager(): JSX.Element {
   };
 
   /** Confirms deletion and removes the product. */
-  const handleDeleteConfirm = (): void => {
-    if (deleteTarget) {
-      updateProducts(products.filter((p) => p.id !== deleteTarget.id));
+  const handleDeleteConfirm = async (): Promise<void> => {
+    if (!deleteTarget) return;
+    try {
+      await updateProducts(products.filter((p) => p.id !== deleteTarget.id));
+      setSnackbar({ open: true, message: '产品删除成功', severity: 'success' });
+    } catch (err: any) {
+      setSnackbar({ open: true, message: '删除失败: ' + (err.message || '未知错误'), severity: 'error' });
     }
     setDeleteTarget(null);
   };
 
   /** Saves the edited/created product. */
-  const handleSave = (event: FormEvent): void => {
+  const handleSave = async (event: FormEvent): Promise<void> => {
     event.preventDefault();
     if (!editingProduct) return;
 
     // Validate required fields.
     if (!editingProduct.model.trim()) {
-      setError('Model is required.');
+      setError('请填写型号。');
       return;
     }
-    if (!editingProduct.image.trim()) {
-      setError('Image URL is required.');
+    const hasImages = (editingProduct.images || []).filter((img) => img && img.trim()).length > 0;
+    if (!hasImages) {
+      setError('请至少上传一张产品图片。');
       return;
     }
     if (!editingProduct.name[lang].trim()) {
-      setError(`Product name (${lang}) is required.`);
+      setError(`产品名称（${lang}）为必填项。`);
       return;
     }
 
-    const exists = products.some((p) => p.id === editingProduct.id);
-    if (exists) {
-      updateProducts(products.map((p) => (p.id === editingProduct.id ? editingProduct : p)));
-    } else {
-      updateProducts([...products, editingProduct]);
+    // Ensure slug is set and images are normalized.
+    const normalizedImages = (editingProduct.images || []).filter((img) => img && img.trim());
+    const savedProduct: Product = {
+      ...editingProduct,
+      slug: editingProduct.slug || generateSlug(editingProduct.category, editingProduct.model),
+      image: normalizedImages[0] || editingProduct.image,
+      images: normalizedImages,
+    };
+
+    setSaving(true);
+    try {
+      const exists = products.some((p) => p.id === savedProduct.id);
+      if (exists) {
+        await updateProducts(products.map((p) => (p.id === savedProduct.id ? savedProduct : p)));
+      } else {
+        await updateProducts([...products, savedProduct]);
+      }
+      setEditOpen(false);
+      setEditingProduct(null);
+      setSnackbar({ open: true, message: '产品保存成功', severity: 'success' });
+    } catch (err: any) {
+      setError('保存失败: ' + (err.message || '未知错误'));
+      setSnackbar({ open: true, message: '保存失败: ' + (err.message || '未知错误'), severity: 'error' });
+    } finally {
+      setSaving(false);
     }
-    setEditOpen(false);
-    setEditingProduct(null);
   };
 
   /** Updates a field on the editing product. */
   const handleFieldChange = <K extends keyof Product>(field: K, value: Product[K]): void => {
     setEditingProduct((prev) => (prev ? { ...prev, [field]: value } : prev));
+  };
+
+  /** Calls the AI SEO generation API and returns the generated localized text (all languages). */
+  const handleAiGenerate = async (field: 'description' | 'metaTitle' | 'metaDescription'): Promise<LocalizedString> => {
+    setAiGenerating(field);
+    setAiError(null);
+    try {
+      const token = getAuthToken();
+      if (!token) throw new Error('未登录，请刷新页面');
+      const res = await fetch('/api/ai/generate-seo', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          field,
+          productInfo: {
+            model: editingProduct?.model || '',
+            category: editingProduct?.category || '',
+            name: editingProduct?.name || { zh: '', en: '' },
+            oemNumber: editingProduct?.oemNumber || '',
+            specifications: editingProduct?.specifications || {},
+            applicableModels: editingProduct?.applicableModels || [],
+            description: editingProduct?.description || {},
+          },
+          // No lang param → multi-language mode (returns all languages)
+        }),
+      });
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => '');
+        let errMsg = `AI 生成失败 (HTTP ${res.status})`;
+        try {
+          const errJson = JSON.parse(errBody);
+          errMsg = errJson.error || errMsg;
+        } catch { /* not JSON */ }
+        if (errBody && errBody.length < 200) errMsg += `: ${errBody}`;
+        throw new Error(errMsg);
+      }
+      const data = await res.json();
+      // Return as LocalizedString
+      return data.text as LocalizedString;
+    } catch (err: any) {
+      const msg = err.message || '网络连接失败';
+      setAiError(msg);
+      console.error('[AI Generate]', err);
+      throw err;
+    } finally {
+      setAiGenerating(null);
+    }
+  };
+
+  /** Calls AI to auto-fill applicable vehicle models based on product name. */
+  const handleAiFillModels = async (): Promise<void> => {
+    setAiGenerating('applicableModels');
+    setAiError(null);
+    try {
+      const token = getAuthToken();
+      if (!token) throw new Error('未登录，请刷新页面');
+
+      // Require at least a product name or model
+      const nameEn = editingProduct?.name?.en || '';
+      const modelCode = editingProduct?.model || '';
+      if (!nameEn && !modelCode) {
+        setAiError('请先填写产品名称或型号，AI 才能推断适用车型');
+        return;
+      }
+
+      const res = await fetch('/api/ai/generate-seo', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          field: 'applicableModels',
+          productInfo: {
+            model: modelCode,
+            category: editingProduct?.category || '',
+            name: editingProduct?.name || { zh: '', en: '' },
+            oemNumber: editingProduct?.oemNumber || '',
+            specifications: editingProduct?.specifications || {},
+            applicableModels: [],
+            description: editingProduct?.description || {},
+          },
+        }),
+      });
+
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => '');
+        let errMsg = `AI 生成车型失败 (HTTP ${res.status})`;
+        try {
+          const errJson = JSON.parse(errBody);
+          errMsg = errJson.error || errMsg;
+        } catch { /* not JSON */ }
+        throw new Error(errMsg);
+      }
+
+      const data = await res.json();
+      const aiModels = data.models as ApplicableModel[];
+
+      if (!aiModels || aiModels.length === 0) {
+        setAiError('AI 无法确定适用车型，请手动填写');
+        return;
+      }
+
+      // Merge with existing models (avoid duplicates by brand+model+year)
+      const existing = editingProduct?.applicableModels || [];
+      const existingKeys = new Set(existing.map((m) => `${m.brand}|${m.model}|${m.year}`));
+      const newModels = aiModels.filter((m) => !existingKeys.has(`${m.brand}|${m.model}|${m.year}`));
+      const merged = [...existing, ...newModels];
+
+      handleFieldChange('applicableModels', merged);
+      setSnackbar({ open: true, message: `AI 已补齐 ${newModels.length} 个车型`, severity: 'success' });
+    } catch (err: any) {
+      const msg = err.message || '网络连接失败';
+      setAiError(msg);
+      console.error('[AI Fill Models]', err);
+    } finally {
+      setAiGenerating(null);
+    }
+  };
+
+  /** One-click sync: translates name, description, metaTitle, metaDescription from Chinese to all other languages. */
+  const handleSyncLanguages = async (): Promise<void> => {
+    if (!editingProduct) return;
+    setAiGenerating('sync');
+    setAiError(null);
+    try {
+      const fieldsToLocalize: Array<{ key: keyof Product; label: string }> = [
+        { key: 'name', label: '产品名称' },
+        { key: 'description', label: '描述' },
+        { key: 'metaTitle', label: 'SEO Title' },
+        { key: 'metaDescription', label: 'SEO Description' },
+      ];
+
+      const updated = { ...editingProduct };
+      const sourceLang: Language = 'zh';
+
+      for (const { key, label } of fieldsToLocalize) {
+        const source = (updated as any)[key] as LocalizedString | undefined;
+        if (!source || !source[sourceLang] || !source[sourceLang].trim()) continue;
+
+        setSnackbar({ open: true, message: `正在翻译${label}...`, severity: 'success' });
+        const translated = await translateLocalizedString(source, sourceLang);
+        (updated as any)[key] = { ...source, ...translated };
+      }
+
+      setEditingProduct(updated);
+      setSnackbar({ open: true, message: '语言同步完成', severity: 'success' });
+    } catch (err: any) {
+      const msg = err.message || '翻译失败';
+      setAiError(msg);
+      console.error('[Sync Languages]', err);
+    } finally {
+      setAiGenerating(null);
+    }
+  };
+
+  /** One-click SEO: calls AI to generate description, metaTitle, metaDescription, and applicableModels in parallel. */
+  const handleOptimizeSeo = async (): Promise<void> => {
+    if (!editingProduct) return;
+    setAiGenerating('optimizeSeo');
+    setAiError(null);
+    try {
+      const token = getAuthToken();
+      if (!token) throw new Error('未登录，请刷新页面');
+
+      const productInfo = {
+        model: editingProduct.model || '',
+        category: editingProduct.category || '',
+        name: editingProduct.name || { zh: '', en: '' },
+        oemNumber: editingProduct.oemNumber || '',
+        specifications: editingProduct.specifications || {},
+        applicableModels: [],
+        description: editingProduct.description || {},
+      };
+
+      const apiCall = async (field: string) => {
+        const res = await fetch('/api/ai/generate-seo', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ field, productInfo }),
+        });
+        if (!res.ok) {
+          const errBody = await res.text().catch(() => '');
+          throw new Error(`AI生成${field}失败: ${errBody.slice(0, 100)}`);
+        }
+        return res.json();
+      };
+
+      const [descData, titleData, metaDescData, modelsData] = await Promise.all([
+        apiCall('description'),
+        apiCall('metaTitle'),
+        apiCall('metaDescription'),
+        apiCall('applicableModels'),
+      ]);
+
+      // Merge AI models with existing (dedup by brand+model+year)
+      const aiModels = (modelsData.models || []) as ApplicableModel[];
+      const existing = editingProduct.applicableModels || [];
+      const existingKeys = new Set(existing.map((m) => `${m.brand}|${m.model}|${m.year}`));
+      const newModels = aiModels.filter((m) => !existingKeys.has(`${m.brand}|${m.model}|${m.year}`));
+      const mergedModels = [...existing, ...newModels];
+
+      setEditingProduct((prev) => prev ? {
+        ...prev,
+        description: descData.text || prev.description,
+        metaTitle: titleData.text || prev.metaTitle,
+        metaDescription: metaDescData.text || prev.metaDescription,
+        applicableModels: mergedModels,
+      } : prev);
+
+      setSnackbar({
+        open: true,
+        message: `SEO优化完成！描述+标题+Meta+${newModels.length}个车型已自动填充`,
+        severity: 'success',
+      });
+    } catch (err: any) {
+      const msg = err.message || 'AI优化失败';
+      setAiError(msg);
+      console.error('[Optimize SEO]', err);
+    } finally {
+      setAiGenerating(null);
+    }
   };
 
   /** Gets the category label for display. */
@@ -142,15 +434,126 @@ function ProductManager(): JSX.Element {
     return cat?.label[lang] ?? categoryId;
   };
 
+  /** Moves a product one position up in the display order. */
+  const handleMoveUp = async (product: Product): Promise<void> => {
+    const sorted = [...products].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.id - b.id);
+    const idx = sorted.findIndex((p) => p.id === product.id);
+    if (idx <= 0) return;
+    const prev = sorted[idx - 1];
+    const currentOrder = product.sortOrder ?? idx;
+    const prevOrder = prev.sortOrder ?? idx - 1;
+    const updated = products.map((p) => {
+      if (p.id === product.id) return { ...p, sortOrder: prevOrder };
+      if (p.id === prev.id) return { ...p, sortOrder: currentOrder };
+      return p;
+    });
+    try {
+      await updateProducts(updated);
+      setSnackbar({ open: true, message: '排序已更新', severity: 'success' });
+    } catch (err: any) {
+      setSnackbar({ open: true, message: '排序更新失败: ' + (err.message || '未知错误'), severity: 'error' });
+    }
+  };
+
+  /** Moves a product one position down in the display order. */
+  const handleMoveDown = async (product: Product): Promise<void> => {
+    const sorted = [...products].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.id - b.id);
+    const idx = sorted.findIndex((p) => p.id === product.id);
+    if (idx < 0 || idx >= sorted.length - 1) return;
+    const next = sorted[idx + 1];
+    const currentOrder = product.sortOrder ?? idx;
+    const nextOrder = next.sortOrder ?? idx + 1;
+    const updated = products.map((p) => {
+      if (p.id === product.id) return { ...p, sortOrder: nextOrder };
+      if (p.id === next.id) return { ...p, sortOrder: currentOrder };
+      return p;
+    });
+    try {
+      await updateProducts(updated);
+      setSnackbar({ open: true, message: '排序已更新', severity: 'success' });
+    } catch (err: any) {
+      setSnackbar({ open: true, message: '排序更新失败: ' + (err.message || '未知错误'), severity: 'error' });
+    }
+  };
+
+  /** Products sorted by sortOrder for display in the admin table. */
+  const sortedProducts = [...products].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.id - b.id);
+  const handleToggleFeatured = async (product: Product): Promise<void> => {
+    try {
+      await updateProducts(
+        products.map((p) =>
+          p.id === product.id ? { ...p, featured: !p.featured } : p
+        )
+      );
+      setSnackbar({ open: true, message: product.featured ? '已取消精选' : '已设为精选', severity: 'success' });
+    } catch (err: any) {
+      setSnackbar({ open: true, message: '操作失败: ' + (err.message || '未知错误'), severity: 'error' });
+    }
+  };
+
+  // --- Applicable Models editor handlers ---
+
+  /** Adds a new blank applicable model entry. */
+  const handleAddModel = (): void => {
+    if (!editingProduct) return;
+    const newModel: ApplicableModel = { brand: '', model: '', year: '', engine: '' };
+    handleFieldChange('applicableModels', [...(editingProduct.applicableModels || []), newModel]);
+  };
+
+  /** Updates a specific applicable model entry. */
+  const handleModelChange = (index: number, field: keyof ApplicableModel, value: string): void => {
+    if (!editingProduct) return;
+    const models = [...(editingProduct.applicableModels || [])];
+    models[index] = { ...models[index], [field]: value };
+    handleFieldChange('applicableModels', models);
+  };
+
+  /** Removes an applicable model entry. */
+  const handleRemoveModel = (index: number): void => {
+    if (!editingProduct) return;
+    const models = (editingProduct.applicableModels || []).filter((_, i) => i !== index);
+    handleFieldChange('applicableModels', models);
+  };
+
+  // --- Specifications editor handlers ---
+
+  /** Adds a new specification key-value pair. */
+  const handleAddSpec = (): void => {
+    if (!editingProduct) return;
+    const specs = { ...(editingProduct.specifications || {}) };
+    const newKey = `spec_${Object.keys(specs).length + 1}`;
+    specs[newKey] = '';
+    handleFieldChange('specifications', specs);
+  };
+
+  /** Updates a specification key or value. */
+  const handleSpecChange = (oldKey: string, newKey: string, value: string): void => {
+    if (!editingProduct) return;
+    const specs = { ...(editingProduct.specifications || {}) };
+    if (oldKey !== newKey) {
+      delete specs[oldKey];
+    }
+    specs[newKey] = value;
+    handleFieldChange('specifications', specs);
+  };
+
+  /** Removes a specification key-value pair. */
+  const handleRemoveSpec = (key: string): void => {
+    if (!editingProduct) return;
+    const specs = { ...(editingProduct.specifications || {}) };
+    delete specs[key];
+    handleFieldChange('specifications', specs);
+  };
+
   return (
     <Box>
       <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
         <Box>
           <Typography variant="h5" sx={{ fontWeight: 800, color: 'primary.main' }}>
-            Product Management
+            产品管理
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            {products.length} products in catalog
+            {products.length} 个产品
           </Typography>
         </Box>
         <Button
@@ -159,7 +562,7 @@ function ProductManager(): JSX.Element {
           startIcon={<AddIcon />}
           onClick={handleAdd}
         >
-          Add Product
+          添加产品
         </Button>
       </Stack>
 
@@ -167,16 +570,24 @@ function ProductManager(): JSX.Element {
         <Table>
           <TableHead>
             <TableRow sx={{ backgroundColor: 'primary.main' }}>
-              <TableCell sx={{ color: '#fff', fontWeight: 700 }}>Image</TableCell>
-              <TableCell sx={{ color: '#fff', fontWeight: 700 }}>Name ({lang})</TableCell>
-              <TableCell sx={{ color: '#fff', fontWeight: 700 }}>Model</TableCell>
-              <TableCell sx={{ color: '#fff', fontWeight: 700 }}>Category</TableCell>
-              <TableCell sx={{ color: '#fff', fontWeight: 700 }} align="right">Actions</TableCell>
+              <TableCell sx={{ color: '#fff', fontWeight: 700 }} align="center">序号</TableCell>
+              <TableCell sx={{ color: '#fff', fontWeight: 700 }}>图片</TableCell>
+              <TableCell sx={{ color: '#fff', fontWeight: 700 }}>名称 ({lang})</TableCell>
+              <TableCell sx={{ color: '#fff', fontWeight: 700 }}>型号</TableCell>
+              <TableCell sx={{ color: '#fff', fontWeight: 700 }}>分类</TableCell>
+              <TableCell sx={{ color: '#fff', fontWeight: 700 }}>精选</TableCell>
+              <TableCell sx={{ color: '#fff', fontWeight: 700 }} align="center">排序</TableCell>
+              <TableCell sx={{ color: '#fff', fontWeight: 700 }} align="right">操作</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {products.map((product) => (
+            {sortedProducts.map((product, index) => (
               <TableRow key={product.id} hover>
+                <TableCell align="center">
+                  <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.secondary' }}>
+                    {index + 1}
+                  </Typography>
+                </TableCell>
                 <TableCell>
                   <Avatar
                     src={product.image}
@@ -187,7 +598,7 @@ function ProductManager(): JSX.Element {
                 </TableCell>
                 <TableCell>
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    {product.name[lang] || '(empty)'}
+                    {product.name[lang] || '(空)'}
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
                     {product.description[lang]?.slice(0, 60)}
@@ -206,13 +617,45 @@ function ProductManager(): JSX.Element {
                     sx={{ backgroundColor: 'primary.light', color: '#fff', fontWeight: 600 }}
                   />
                 </TableCell>
+                <TableCell>
+                  <Switch
+                    checked={product.featured || false}
+                    onChange={() => handleToggleFeatured(product)}
+                    color="secondary"
+                    size="small"
+                  />
+                </TableCell>
+                <TableCell align="center">
+                  <Tooltip title="上移">
+                    <span>
+                      <IconButton
+                        onClick={() => handleMoveUp(product)}
+                        disabled={index === 0}
+                        size="small"
+                      >
+                        <KeyboardArrowUpIcon />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                  <Tooltip title="下移">
+                    <span>
+                      <IconButton
+                        onClick={() => handleMoveDown(product)}
+                        disabled={index === sortedProducts.length - 1}
+                        size="small"
+                      >
+                        <KeyboardArrowDownIcon />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                </TableCell>
                 <TableCell align="right">
-                  <Tooltip title="Edit">
+                  <Tooltip title="编辑">
                     <IconButton onClick={() => handleEdit(product)} color="primary" size="small">
                       <EditIcon />
                     </IconButton>
                   </Tooltip>
-                  <Tooltip title="Delete">
+                  <Tooltip title="删除">
                     <IconButton onClick={() => handleDeleteClick(product)} color="error" size="small">
                       <DeleteIcon />
                     </IconButton>
@@ -233,7 +676,7 @@ function ProductManager(): JSX.Element {
       >
         <form onSubmit={handleSave}>
           <DialogTitle sx={{ fontWeight: 700 }}>
-            {products.some((p) => p.id === editingProduct?.id) ? 'Edit Product' : 'Add New Product'}
+            {products.some((p) => p.id === editingProduct?.id) ? '编辑产品' : '添加新产品'}
           </DialogTitle>
           <DialogContent>
             {error && (
@@ -241,74 +684,294 @@ function ProductManager(): JSX.Element {
                 {error}
               </Alert>
             )}
+            {aiError && (
+              <Alert severity="error" sx={{ mb: 2 }} onClose={() => setAiError(null)}>
+                {aiError}
+              </Alert>
+            )}
             {editingProduct && (
               <Box sx={{ mt: 1 }}>
+                {/* One-click action bar */}
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mb: 2 }}>
+                  <Button
+                    variant="contained"
+                    color="secondary"
+                    startIcon={aiGenerating === 'sync' ? <CircularProgress size={18} color="inherit" /> : <SyncIcon />}
+                    onClick={handleSyncLanguages}
+                    disabled={aiGenerating !== null}
+                    sx={{ textTransform: 'none', flex: 1 }}
+                  >
+                    一键同步语言
+                  </Button>
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    startIcon={aiGenerating === 'optimizeSeo' ? <CircularProgress size={18} color="inherit" /> : <AutoFixHighIcon />}
+                    onClick={handleOptimizeSeo}
+                    disabled={aiGenerating !== null || (!editingProduct.name?.en && !editingProduct.model)}
+                    sx={{ textTransform: 'none', flex: 1 }}
+                  >
+                    一键优化SEO
+                  </Button>
+                </Stack>
+
+                {/* Basic fields */}
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 2 }}>
                   <TextField
                     fullWidth
-                    label="Model"
+                    label="型号"
                     required
                     value={editingProduct.model}
                     onChange={(e: ChangeEvent<HTMLInputElement>) => handleFieldChange('model', e.target.value)}
                     size="small"
                   />
-                  <FormControl fullWidth size="small">
-                    <InputLabel>Category</InputLabel>
-                    <Select
-                      value={editingProduct.category}
-                      label="Category"
-                      onChange={(e) => handleFieldChange('category', e.target.value)}
-                    >
-                      {editableCategories.map((cat) => (
-                        <MenuItem key={cat.id} value={cat.id}>
-                          {cat.label[lang]}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
+                  <Autocomplete
+                    fullWidth
+                    freeSolo
+                    size="small"
+                    options={editableCategories}
+                    getOptionLabel={(option) => {
+                      if (typeof option === 'string') return option;
+                      return option.label[lang];
+                    }}
+                    value={
+                      editableCategories.find((c) => c.id === editingProduct.category) ?? editingProduct.category
+                    }
+                    onChange={(event: SyntheticEvent, newValue: ProductCategory | string | null) => {
+                      if (newValue === null) {
+                        handleFieldChange('category', '');
+                      } else if (typeof newValue === 'string') {
+                        handleFieldChange('category', newValue);
+                      } else {
+                        handleFieldChange('category', newValue.id);
+                      }
+                    }}
+                    onInputChange={(event: SyntheticEvent, newInputValue: string) => {
+                      // Only update if it's a freeSolo typed value (not matching an existing option)
+                      const matchedOption = editableCategories.find(
+                        (c) => c.label[lang] === newInputValue || c.id === newInputValue
+                      );
+                      if (!matchedOption && newInputValue) {
+                        handleFieldChange('category', newInputValue);
+                      }
+                    }}
+                    renderOption={(props, option) => {
+                      const { key, ...restProps } = props as unknown as Record<string, unknown>;
+                      const isCategory = typeof option !== 'string';
+                      const displayLabel = isCategory ? option.label[lang] : option;
+                      const logoSrc = isCategory ? option.logo : undefined;
+                      return (
+                        <li key={key as string} {...restProps as React.HTMLAttributes<HTMLLIElement>}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            {logoSrc && (
+                              <img
+                                src={logoSrc}
+                                alt={displayLabel}
+                                style={{ width: 24, height: 24, objectFit: 'contain' }}
+                              />
+                            )}
+                            <span>{displayLabel}</span>
+                          </Box>
+                        </li>
+                      );
+                    }}
+                    renderInput={(params) => (
+                      <TextField {...params} label="分类" />
+                    )}
+                  />
                 </Stack>
-                <TextField
-                  fullWidth
-                  label="Image URL"
-                  required
-                  value={editingProduct.image}
-                  onChange={(e: ChangeEvent<HTMLInputElement>) => handleFieldChange('image', e.target.value)}
-                  size="small"
-                  sx={{ mb: 2 }}
-                  helperText="e.g. https://picsum.photos/seed/engine1/400/300"
+                <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+                  产品图片 (最多 5 张，第一张为主图)
+                </Typography>
+                <MultiImageGallery
+                  images={editingProduct.images || (editingProduct.image ? [editingProduct.image] : [])}
+                  onChange={(newImages) => {
+                    handleFieldChange('image', newImages[0] || '');
+                    handleFieldChange('images', newImages);
+                  }}
                 />
-                {editingProduct.image && (
-                  <Box sx={{ mb: 2 }}>
-                    <Avatar
-                      src={editingProduct.image}
-                      alt="Preview"
-                      variant="rounded"
-                      sx={{ width: 120, height: 90 }}
-                    />
-                  </Box>
-                )}
                 <LocalizedTextField
-                  label="Product Name"
+                  label="产品名称"
                   required
                   value={editingProduct.name}
                   onChange={(value) => handleFieldChange('name', value)}
+                  showActions={false}
+                />
+                <TextField
+                  fullWidth
+                  label="OEM 编号"
+                  value={editingProduct.oemNumber || ''}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => handleFieldChange('oemNumber', e.target.value)}
+                  size="small"
+                  sx={{ mt: 1 }}
                 />
                 <LocalizedTextField
-                  label="Description"
+                  label="描述"
                   multiline
                   rows={3}
                   value={editingProduct.description}
                   onChange={(value) => handleFieldChange('description', value)}
+                  showActions={false}
                 />
+
+                <Divider sx={{ my: 2 }} />
+
+                {/* SEO Fields Accordion */}
+                <Accordion>
+                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                      SEO 信息
+                    </Typography>
+                  </AccordionSummary>
+                  <AccordionDetails>
+                    <Stack spacing={2}>
+                      <LocalizedTextField
+                        label="SEO Meta Title"
+                        value={editingProduct.metaTitle || emptyLocalizedString()}
+                        onChange={(value) => handleFieldChange('metaTitle', value)}
+                        showActions={false}
+                      />
+                      <LocalizedTextField
+                        label="SEO Meta Description"
+                        multiline
+                        rows={3}
+                        value={editingProduct.metaDescription || emptyLocalizedString()}
+                        onChange={(value) => handleFieldChange('metaDescription', value)}
+                        showActions={false}
+                      />
+                    </Stack>
+                  </AccordionDetails>
+                </Accordion>
+
+                {/* Applicable Models Accordion */}
+                <Accordion>
+                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                        适用车型 ({editingProduct.applicableModels?.length || 0})
+                      </Typography>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        color="secondary"
+                        startIcon={aiGenerating === 'applicableModels' ? <CircularProgress size={16} color="inherit" /> : <SmartToyIcon />}
+                        onClick={(e) => {
+                          e.stopPropagation(); // Prevent accordion toggle
+                          handleAiFillModels();
+                        }}
+                        disabled={aiGenerating === 'applicableModels' || !editingProduct.name?.en && !editingProduct.model}
+                        sx={{ fontSize: '0.75rem', py: 0.3, px: 1.5, ml: 1 }}
+                      >
+                        AI自动补齐
+                      </Button>
+                    </Stack>
+                  </AccordionSummary>
+                  <AccordionDetails>
+                    <Stack spacing={2}>
+                      {(editingProduct.applicableModels || []).map((model, index) => (
+                        <Stack key={index} direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="center">
+                          <TextField
+                            label="品牌"
+                            value={model.brand}
+                            onChange={(e) => handleModelChange(index, 'brand', e.target.value)}
+                            size="small"
+                            sx={{ flex: 1 }}
+                          />
+                          <TextField
+                            label="车型"
+                            value={model.model}
+                            onChange={(e) => handleModelChange(index, 'model', e.target.value)}
+                            size="small"
+                            sx={{ flex: 1 }}
+                          />
+                          <TextField
+                            label="年份"
+                            value={model.year}
+                            onChange={(e) => handleModelChange(index, 'year', e.target.value)}
+                            size="small"
+                            sx={{ flex: 1 }}
+                          />
+                          <TextField
+                            label="发动机"
+                            value={model.engine || ''}
+                            onChange={(e) => handleModelChange(index, 'engine', e.target.value)}
+                            size="small"
+                            sx={{ flex: 1 }}
+                          />
+                          <IconButton onClick={() => handleRemoveModel(index)} color="error" size="small">
+                            <DeleteIcon />
+                          </IconButton>
+                        </Stack>
+                      ))}
+                      <Button
+                        startIcon={<AddIcon />}
+                        onClick={handleAddModel}
+                        variant="outlined"
+                        size="small"
+                        sx={{ alignSelf: 'flex-start' }}
+                      >
+                        添加车型
+                      </Button>
+                    </Stack>
+                  </AccordionDetails>
+                </Accordion>
+
+                {/* Specifications Accordion */}
+                <Accordion>
+                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                      规格参数 ({Object.keys(editingProduct.specifications || {}).length})
+                    </Typography>
+                  </AccordionSummary>
+                  <AccordionDetails>
+                    <Stack spacing={2}>
+                      {Object.entries(editingProduct.specifications || {}).map(([key, value]) => (
+                        <Stack key={key} direction="row" spacing={1} alignItems="center">
+                          <TextField
+                            label="参数名"
+                            value={key}
+                            onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                              handleSpecChange(key, e.target.value, value)
+                            }
+                            size="small"
+                            sx={{ flex: 1 }}
+                          />
+                          <TextField
+                            label="参数值"
+                            value={value}
+                            onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                              handleSpecChange(key, key, e.target.value)
+                            }
+                            size="small"
+                            sx={{ flex: 1 }}
+                          />
+                          <IconButton onClick={() => handleRemoveSpec(key)} color="error" size="small">
+                            <DeleteIcon />
+                          </IconButton>
+                        </Stack>
+                      ))}
+                      <Button
+                        startIcon={<AddIcon />}
+                        onClick={handleAddSpec}
+                        variant="outlined"
+                        size="small"
+                        sx={{ alignSelf: 'flex-start' }}
+                      >
+                        添加规格
+                      </Button>
+                    </Stack>
+                  </AccordionDetails>
+                </Accordion>
               </Box>
             )}
           </DialogContent>
           <DialogActions sx={{ px: 3, pb: 3 }}>
-            <Button onClick={() => setEditOpen(false)} color="inherit">
-              Cancel
+            <Button onClick={() => setEditOpen(false)} color="inherit" disabled={saving}>
+              取消
             </Button>
-            <Button type="submit" variant="contained" color="primary">
-              Save
+            <Button type="submit" variant="contained" color="primary" disabled={saving}
+              startIcon={saving ? <CircularProgress size={20} color="inherit" /> : undefined}>
+              {saving ? '保存中...' : '保存'}
             </Button>
           </DialogActions>
         </form>
@@ -321,25 +984,33 @@ function ProductManager(): JSX.Element {
         maxWidth="xs"
         fullWidth
       >
-        <DialogTitle sx={{ fontWeight: 700 }}>Confirm Delete</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 700 }}>确认删除</DialogTitle>
         <DialogContent>
           <Typography variant="body1">
-            Are you sure you want to delete{' '}
-            <strong>{deleteTarget?.name[lang]}</strong> ({deleteTarget?.model})?
+            确定要删除{' '}
+            <strong>{deleteTarget?.name[lang]}</strong> ({deleteTarget?.model})？
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            This action cannot be undone.
+            此操作无法撤销。
           </Typography>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 3 }}>
           <Button onClick={() => setDeleteTarget(null)} color="inherit">
-            Cancel
+            取消
           </Button>
           <Button onClick={handleDeleteConfirm} variant="contained" color="error">
-            Delete
+            删除
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Snackbar for success/error notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={3000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        message={snackbar.message}
+      />
     </Box>
   );
 }

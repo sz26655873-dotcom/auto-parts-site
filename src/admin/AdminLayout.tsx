@@ -4,7 +4,7 @@
  * Used as a wrapper around all protected admin pages. The sidebar provides
  * navigation between Dashboard, Products, Contact, Company, and Data pages,
  * plus a "View Site" link back to the front-end. The top bar shows the
- * admin label and a logout button.
+ * admin label, a network status indicator, and a logout button.
  */
 
 import { useState } from 'react';
@@ -26,29 +26,87 @@ import {
   Divider,
   useMediaQuery,
   useTheme,
+  Tooltip,
+  CircularProgress,
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import InventoryIcon from '@mui/icons-material/Inventory';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
 import ContactPhoneIcon from '@mui/icons-material/ContactPhone';
 import BusinessIcon from '@mui/icons-material/Business';
 import StorageIcon from '@mui/icons-material/Storage';
+import InboxIcon from '@mui/icons-material/Inbox';
 import LogoutIcon from '@mui/icons-material/Logout';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import DirectionsCarIcon from '@mui/icons-material/DirectionsCar';
-import { setAuthenticated } from './adminStorage';
+import BarChartIcon from '@mui/icons-material/BarChart';
+import WifiIcon from '@mui/icons-material/Wifi';
+import WifiOffIcon from '@mui/icons-material/WifiOff';
+import SyncIcon from '@mui/icons-material/Sync';
+import { clearAuthToken } from './adminStorage';
+import { useAdminData } from './AdminDataContext';
 
 /** Sidebar width in pixels. */
 const DRAWER_WIDTH = 260;
 
 /** Navigation items for the admin sidebar. */
 const navItems = [
-  { label: 'Dashboard', path: '/admin/dashboard', icon: <DashboardIcon /> },
-  { label: 'Products', path: '/admin/products', icon: <InventoryIcon /> },
-  { label: 'Contact Info', path: '/admin/contact', icon: <ContactPhoneIcon /> },
-  { label: 'Company Info', path: '/admin/company', icon: <BusinessIcon /> },
-  { label: 'Data Management', path: '/admin/data', icon: <StorageIcon /> },
+  { label: '控制台', path: '/admin/dashboard', icon: <DashboardIcon /> },
+  { label: '询盘管理', path: '/admin/inquiries', icon: <InboxIcon /> },
+  { label: '产品管理', path: '/admin/products', icon: <InventoryIcon /> },
+  { label: '批量添加', path: '/admin/bulk-upload', icon: <UploadFileIcon /> },
+  { label: '联系方式', path: '/admin/contact', icon: <ContactPhoneIcon /> },
+  { label: '公司信息', path: '/admin/company', icon: <BusinessIcon /> },
+  { label: '数据管理', path: '/admin/data', icon: <StorageIcon /> },
+  { label: '访客数据', path: '/admin/analytics', icon: <BarChartIcon /> },
 ];
+
+/**
+ * Network status indicator — displays in the top bar.
+ * online → green dot, offline → red dot, syncing → yellow spinner
+ */
+function NetworkStatusIndicator(): JSX.Element {
+  const { networkStatus } = useAdminData();
+
+  if (networkStatus === 'syncing') {
+    return (
+      <Tooltip title="正在同步数据...">
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <CircularProgress size={16} sx={{ color: 'warning.main' }} />
+          <Typography variant="caption" sx={{ color: 'warning.main', fontWeight: 600 }}>
+            同步中
+          </Typography>
+        </Box>
+      </Tooltip>
+    );
+  }
+
+  if (networkStatus === 'offline') {
+    return (
+      <Tooltip title="网络离线 — 使用缓存数据">
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <WifiOffIcon sx={{ fontSize: 18, color: 'error.main' }} />
+          <Typography variant="caption" sx={{ color: 'error.main', fontWeight: 600 }}>
+            离线
+          </Typography>
+        </Box>
+      </Tooltip>
+    );
+  }
+
+  // online
+  return (
+    <Tooltip title="已连接云端数据库">
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+        <WifiIcon sx={{ fontSize: 18, color: 'success.main' }} />
+        <Typography variant="caption" sx={{ color: 'success.main', fontWeight: 600 }}>
+          已连接
+        </Typography>
+      </Box>
+    </Tooltip>
+  );
+}
 
 /**
  * Admin layout with responsive sidebar and top bar.
@@ -66,7 +124,7 @@ function AdminLayout(): JSX.Element {
   };
 
   const handleLogout = (): void => {
-    setAuthenticated(false);
+    clearAuthToken();
     navigate('/admin', { replace: true });
   };
 
@@ -81,10 +139,7 @@ function AdminLayout(): JSX.Element {
       <Toolbar>
         <DirectionsCarIcon sx={{ mr: 1, color: 'secondary.main' }} />
         <Typography variant="h6" sx={{ fontWeight: 800 }}>
-          Admin
-          <Box component="span" sx={{ color: 'secondary.main' }}>
-            Panel
-          </Box>
+          管理后台
         </Typography>
       </Toolbar>
       <Divider />
@@ -125,7 +180,7 @@ function AdminLayout(): JSX.Element {
             <ListItemIcon sx={{ minWidth: 40 }}>
               <OpenInNewIcon />
             </ListItemIcon>
-            <ListItemText primary="View Site" />
+            <ListItemText primary="查看网站" />
           </ListItemButton>
         </ListItem>
       </List>
@@ -190,8 +245,12 @@ function AdminLayout(): JSX.Element {
               </IconButton>
             )}
             <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 600, color: 'primary.main' }}>
-              {navItems.find((item) => isActive(item.path))?.label ?? 'Admin'}
+              {navItems.find((item) => isActive(item.path))?.label ?? '管理后台'}
             </Typography>
+            {/* Network status indicator */}
+            <Box sx={{ mr: 2 }}>
+              <NetworkStatusIndicator />
+            </Box>
             <Button
               startIcon={<LogoutIcon />}
               onClick={handleLogout}
@@ -199,7 +258,7 @@ function AdminLayout(): JSX.Element {
               variant="outlined"
               size="small"
             >
-              Logout
+              退出登录
             </Button>
           </Toolbar>
         </AppBar>

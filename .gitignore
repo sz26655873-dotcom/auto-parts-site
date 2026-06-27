@@ -22,3 +22,7 @@ npm-debug.log*
 # Test coverage
 coverage/
 *.tsbuildinfo
+
+# Cloudflare Wrangler (contains KV/R2 IDs, should not be tracked)
+wrangler.toml
+.wrangler/

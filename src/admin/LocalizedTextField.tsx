@@ -21,6 +21,7 @@ import {
   CircularProgress,
   Alert,
   Tooltip,
+  Stack,
 } from '@mui/material';
 import type { LocalizedString } from '../data/products';
 import {
@@ -29,8 +30,8 @@ import {
 } from '../i18n/translations';
 import { translateLocalizedString } from '../utils/translator';
 
-/** All supported languages in canonical tab order. */
-const ALL_LANGS: Language[] = ['en', 'zh', 'ru', 'ar', 'ko'];
+/** All supported languages in canonical tab order (Chinese first for admin convenience). */
+const ALL_LANGS: Language[] = ['zh', 'en', 'ru', 'ar', 'ko'];
 
 interface LocalizedTextFieldProps {
   /** Label displayed above the tabs. */
@@ -47,6 +48,10 @@ interface LocalizedTextFieldProps {
   required?: boolean;
   /** Optional helper text. */
   helperText?: string;
+  /** Optional callback that invokes AI to generate content. Returns generated localized text for all languages. */
+  onAiGenerate?: () => Promise<LocalizedString>;
+  /** Whether to show AI/translate action buttons (default: true). Set false when parent handles actions centrally. */
+  showActions?: boolean;
 }
 
 /**
@@ -64,10 +69,14 @@ function LocalizedTextField({
   rows = 3,
   required = false,
   helperText,
+  onAiGenerate,
+  showActions = true,
 }: LocalizedTextFieldProps): JSX.Element {
-  const [activeLang, setActiveLang] = useState<Language>('en');
+  const [activeLang, setActiveLang] = useState<Language>('zh');
   const [isTranslating, setIsTranslating] = useState(false);
   const [translateError, setTranslateError] = useState<string | null>(null);
+  const [isAiGenerating, setIsAiGenerating] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   const handleTabChange = (_event: unknown, newValue: Language): void => {
     setActiveLang(newValue);
@@ -99,10 +108,35 @@ function LocalizedTextField({
       setTranslateError(
         error instanceof Error
           ? error.message
-          : 'Translation failed. Please try again.',
+          : '翻译失败，请重试。',
       );
     } finally {
       setIsTranslating(false);
+    }
+  };
+
+  /**
+   * Invokes the AI generation callback and fills the result into all language fields.
+   * Shows error on failure.
+   */
+  const handleAiGenerate = async (): Promise<void> => {
+    if (!onAiGenerate) return;
+    setIsAiGenerating(true);
+    setAiError(null);
+    try {
+      const generatedText = await onAiGenerate();
+      if (generatedText) {
+        // Merge generated localized text into all languages
+        onChange({ ...value, ...generatedText });
+      }
+    } catch (error) {
+      setAiError(
+        error instanceof Error
+          ? error.message
+          : 'AI 生成失败，请重试。',
+      );
+    } finally {
+      setIsAiGenerating(false);
     }
   };
 
@@ -125,30 +159,58 @@ function LocalizedTextField({
             <Box component="span" sx={{ color: 'error.main', ml: 0.5 }}>*</Box>
           )}
         </Typography>
-        <Tooltip
-          title={`Translate from ${languageNames[activeLang]} to all other languages`}
-        >
-          <span>
-            <Button
-              size="small"
-              variant="outlined"
-              disabled={isTranslating || isSourceEmpty}
-              onClick={handleTranslate}
-              sx={{
-                textTransform: 'none',
-                fontSize: '0.75rem',
-                py: 0.25,
-                minWidth: 'auto',
-              }}
+        <Stack direction="row" spacing={0.5}>
+          {showActions && onAiGenerate && (
+            <Tooltip title="AI 一键生成所有语言 SEO 文案">
+              <span>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  disabled={isAiGenerating}
+                  onClick={handleAiGenerate}
+                  sx={{
+                    textTransform: 'none',
+                    fontSize: '0.75rem',
+                    py: 0.25,
+                    minWidth: 'auto',
+                  }}
+                >
+                  {isAiGenerating ? (
+                    <CircularProgress size={16} color="inherit" />
+                  ) : (
+                    '\u{1F916} AI \u751F\u6210'
+                  )}
+                </Button>
+              </span>
+            </Tooltip>
+          )}
+          {showActions && (
+            <Tooltip
+              title={`从${languageNames[activeLang]}翻译到其他所有语言`}
             >
-              {isTranslating ? (
-                <CircularProgress size={16} color="inherit" />
-              ) : (
-                '\u{1F310} \u4E00\u952E\u7FFB\u8BD1'
-              )}
-            </Button>
-          </span>
-        </Tooltip>
+              <span>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  disabled={isTranslating || isSourceEmpty}
+                  onClick={handleTranslate}
+                  sx={{
+                    textTransform: 'none',
+                    fontSize: '0.75rem',
+                    py: 0.25,
+                    minWidth: 'auto',
+                  }}
+                >
+                  {isTranslating ? (
+                    <CircularProgress size={16} color="inherit" />
+                  ) : (
+                    '\u{1F310} \u4E00\u952E\u7FFB\u8BD1'
+                  )}
+                </Button>
+              </span>
+            </Tooltip>
+          )}
+        </Stack>
       </Box>
       {translateError && (
         <Alert
@@ -157,6 +219,15 @@ function LocalizedTextField({
           onClose={() => setTranslateError(null)}
         >
           {translateError}
+        </Alert>
+      )}
+      {aiError && (
+        <Alert
+          severity="error"
+          sx={{ mb: 1 }}
+          onClose={() => setAiError(null)}
+        >
+          {aiError}
         </Alert>
       )}
       <Tabs

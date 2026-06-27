@@ -1,45 +1,32 @@
 import { useMemo } from 'react';
-import { Box } from '@mui/material';
 import { ThemeProvider, CssBaseline } from '@mui/material';
 import { CacheProvider } from '@emotion/react';
 import { Routes, Route } from 'react-router-dom';
-import Navbar from './components/Navbar';
-import Hero from './components/Hero';
-import Products from './components/Products';
-import Advantages from './components/Advantages';
-import About from './components/About';
-import Contact from './components/Contact';
-import Footer from './components/Footer';
 import AdminApp from './admin/AdminApp';
 import { useLanguage } from './i18n/LanguageContext';
 import { createAppTheme } from './theme';
 import { ltrCache, rtlCache } from './cache';
-
-/**
- * Front-end single-page site — all sections rendered in a scroll layout.
- * Displayed at the root route "/".
- */
-function FrontendPage(): JSX.Element {
-  return (
-    <Box>
-      <Navbar />
-      <Hero />
-      <Products />
-      <Advantages />
-      <About />
-      <Contact />
-      <Footer />
-    </Box>
-  );
-}
+import Layout from './components/Layout';
+import HomePage from './pages/HomePage';
+import ProductsPage from './pages/ProductsPage';
+import CategoryPage from './pages/CategoryPage';
+import ProductDetailPage from './pages/ProductDetailPage';
+import AboutPage from './pages/AboutPage';
+import ContactPage from './pages/ContactPage';
+import NotFoundPage from './pages/NotFoundPage';
 
 /**
  * Root application component.
  *
  * Configures the MUI theme direction and emotion cache based on the active
  * language (RTL for Arabic, LTR for all others), then renders the route tree:
- *   "/"           → Front-end site (all sections)
- *   "/admin/*"    → Admin backend (login, dashboard, managers)
+ *   "/"                          → Home page
+ *   "/products"                  → Product catalog
+ *   "/products/category/:cat"    → Category listing
+ *   "/products/:slug"            → Product detail
+ *   "/about"                     → About page
+ *   "/contact"                   → Contact page
+ *   "/admin/*"                   → Admin backend (login, dashboard, managers)
  */
 function App(): JSX.Element {
   const { isRTL } = useLanguage();
@@ -54,7 +41,16 @@ function App(): JSX.Element {
       <ThemeProvider theme={theme}>
         <CssBaseline />
         <Routes>
-          <Route path="/" element={<FrontendPage />} />
+          <Route element={<Layout />}>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/products" element={<ProductsPage />} />
+            {/* Category route must come before :slug to avoid mismatch */}
+            <Route path="/products/category/:cat" element={<CategoryPage />} />
+            <Route path="/products/:slug" element={<ProductDetailPage />} />
+            <Route path="/about" element={<AboutPage />} />
+            <Route path="/contact" element={<ContactPage />} />
+            <Route path="*" element={<NotFoundPage />} />
+          </Route>
           <Route path="/admin/*" element={<AdminApp />} />
         </Routes>
       </ThemeProvider>

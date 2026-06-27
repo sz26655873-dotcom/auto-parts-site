@@ -42,7 +42,24 @@ function Advantages(): JSX.Element {
   const { companyInfo } = useAdminData();
 
   return (
-    <Box id="advantages" sx={{ py: { xs: 8, md: 12 } }}>
+    <Box id="advantages" sx={{ py: { xs: 8, md: 12 }, position: 'relative', overflow: 'hidden' }}>
+      {/* Background car silhouette watermark */}
+      <Box
+        sx={{
+          position: 'absolute',
+          left: '-5%',
+          bottom: '-10%',
+          width: { xs: '200px', md: '350px' },
+          height: { xs: '100px', md: '175px' },
+          opacity: 0.03,
+          display: { xs: 'none', md: 'block' },
+        }}
+      >
+        <svg viewBox="0 0 500 250" fill="#0A2342" xmlns="http://www.w3.org/2000/svg">
+          <path d="M20 180 L40 180 L50 140 L80 140 L90 120 L180 120 L200 100 L320 100 L340 120 L420 120 L440 140 L460 140 L470 180 L480 180 L480 200 L20 200 Z"/>
+        </svg>
+      </Box>
+
       <Container maxWidth="lg">
         <Grid container spacing={4}>
           {advantages.map((adv, index) => (

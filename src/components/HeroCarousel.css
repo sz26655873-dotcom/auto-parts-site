@@ -1,0 +1,745 @@
+/**
+ * HeroCarousel Styles
+ *
+ * Converted from a Vue 3 <style scoped> block to global CSS.
+ * All class names are prefixed with `hc-` to avoid global pollution.
+ *
+ * Sections:
+ *   1. Container & slides wrapper
+ *   2. Slide common + slide-specific backgrounds (1–5)
+ *   3. Hero inner layout, text, tag, title, description, CTA
+ *   4. Stats rows
+ *   5. Hero image (slides 1 & 2)
+ *   6. Logo grid (slide 3)
+ *   7. Parts grid (slide 4)
+ *   8. World map (slide 5)
+ *   9. Navigation arrows & indicators
+ *  10. Keyframes (drawArc, popDot, destPulse, tagPulse)
+ *  11. Responsive (@media max-width: 768px)
+ */
+
+/* ================================================================
+   1. Container & Slides Wrapper
+   ================================================================ */
+
+.hc-carousel {
+  position: relative;
+  width: 100%;
+  margin: 0;
+  border-radius: 0;
+  overflow: hidden;
+  background: #0a0e1a;
+}
+
+.hc-slides-wrapper {
+  position: relative;
+  width: 100%;
+  min-height: 70vh;
+  overflow: hidden;
+  transition: min-height 0.35s ease-out;
+}
+
+/* ================================================================
+   2. Slide Common + Backgrounds
+   ================================================================ */
+
+.hc-slide {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 56px;
+  box-sizing: border-box;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.7s ease-in-out, visibility 0s linear 0.7s;
+  overflow-y: auto;
+}
+
+.hc-slide--active {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.7s ease-in-out, visibility 0s linear 0s;
+  z-index: 1;
+}
+
+/* Slide 1 — Product (dark navy + orange) */
+.hc-slide-1 {
+  background:
+    radial-gradient(ellipse at 80% 20%, rgba(249, 115, 22, 0.12), transparent 50%),
+    linear-gradient(135deg, #0c1e3d 0%, #0a1628 50%, #030b15 100%);
+}
+
+/* Slide 2 — Team / Warehouse (dark teal + green) */
+.hc-slide-2 {
+  background:
+    radial-gradient(ellipse at 80% 20%, rgba(16, 185, 129, 0.12), transparent 50%),
+    linear-gradient(135deg, #0c2a25 0%, #0a1f1a 50%, #051410 100%);
+}
+
+/* Slide 3 — Car Brands (dark purple + orange) */
+.hc-slide-3 {
+  background:
+    radial-gradient(ellipse at 50% 30%, rgba(249, 115, 22, 0.10), transparent 60%),
+    linear-gradient(135deg, #1a1228 0%, #0f0a1a 50%, #050310 100%);
+}
+
+/* Slide 4 — Parts Brands (dark blue + sky) */
+.hc-slide-4 {
+  background:
+    radial-gradient(ellipse at 50% 30%, rgba(56, 189, 248, 0.10), transparent 60%),
+    linear-gradient(135deg, #0a1e2e 0%, #061521 50%, #030c14 100%);
+}
+
+/* Slide 5 — Global Reach (dark green + emerald) */
+.hc-slide-5 {
+  background:
+    radial-gradient(ellipse at 30% 50%, rgba(16, 185, 129, 0.12), transparent 50%),
+    linear-gradient(135deg, #0a2818 0%, #061a12 50%, #030f08 100%);
+}
+
+/* ================================================================
+   3. Hero Inner Layout, Text, Tag, Title, Description, CTA
+   ================================================================ */
+
+.hc-hero-inner {
+  display: flex;
+  align-items: center;
+  gap: 48px;
+  width: 100%;
+  max-width: 880px;
+}
+
+.hc-hero-text {
+  flex: 1 1 50%;
+  min-width: 0;
+}
+
+/* Slides 3 & 4 — column layout, centered */
+.hc-slide-3 .hc-hero-inner {
+  flex-direction: column;
+  text-align: center;
+  gap: 12px;
+}
+
+.hc-slide-4 .hc-hero-inner {
+  flex-direction: column;
+  text-align: center;
+  gap: 12px;
+}
+
+.hc-slide-3 .hc-hero-title {
+  text-align: center;
+  margin-bottom: 10px;
+  line-height: 1.15;
+}
+
+.hc-slide-4 .hc-hero-title {
+  text-align: center;
+  margin-bottom: 10px;
+  line-height: 1.15;
+}
+
+.hc-slide-3 .hc-hero-desc {
+  text-align: center;
+  margin-left: auto;
+  margin-right: auto;
+  line-height: 1.45;
+  margin-bottom: 16px;
+}
+
+.hc-slide-4 .hc-hero-desc {
+  text-align: center;
+  margin-left: auto;
+  margin-right: auto;
+  line-height: 1.45;
+  margin-bottom: 16px;
+}
+
+/* Tag / Badge */
+.hc-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 50px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  margin-bottom: 20px;
+}
+
+.hc-slide-3 .hc-tag {
+  margin-left: auto;
+  margin-right: auto;
+  margin-bottom: 14px;
+}
+
+.hc-slide-4 .hc-tag {
+  margin-left: auto;
+  margin-right: auto;
+  margin-bottom: 14px;
+}
+
+.hc-tag-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #f97316;
+  box-shadow: 0 0 8px rgba(249, 115, 22, 0.6);
+  animation: hc-tagPulse 2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+/* Slide-specific tag dot colors */
+.hc-slide-2 .hc-tag-dot { background: #10b981; box-shadow: 0 0 8px rgba(16, 185, 129, 0.6); }
+.hc-slide-4 .hc-tag-dot { background: #38bdf8; box-shadow: 0 0 8px rgba(56, 189, 248, 0.6); }
+.hc-slide-5 .hc-tag-dot { background: #10b981; box-shadow: 0 0 8px rgba(16, 185, 129, 0.6); }
+
+.hc-tag-text {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: rgba(255, 255, 255, 0.85);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* Title */
+.hc-hero-title {
+  font-size: 2.4rem;
+  font-weight: 800;
+  line-height: 1.2;
+  color: #ffffff;
+  margin: 0 0 16px 0;
+  text-align: left;
+}
+
+/* Description */
+.hc-hero-desc {
+  font-size: 0.95rem;
+  line-height: 1.7;
+  color: rgba(255, 255, 255, 0.7);
+  margin: 0 0 24px 0;
+  text-align: left;
+  max-width: 420px;
+}
+
+.hc-slide-4 .hc-hero-desc {
+  max-width: 560px;
+}
+
+.hc-slide-3 .hc-hero-desc {
+  max-width: 560px;
+}
+
+/* CTA Button */
+.hc-cta-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 28px;
+  border: none;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #f97316, #ea580c);
+  color: #ffffff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  cursor: pointer;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 4px 16px rgba(249, 115, 22, 0.3);
+  font-family: inherit;
+  line-height: 1;
+}
+
+.hc-cta-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(249, 115, 22, 0.45);
+}
+
+.hc-cta-btn:active {
+  transform: translateY(0);
+}
+
+.hc-cta-btn--green {
+  background: linear-gradient(135deg, #10b981, #059669);
+  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3);
+}
+
+.hc-cta-btn--green:hover {
+  box-shadow: 0 6px 24px rgba(16, 185, 129, 0.45);
+}
+
+/* Slide 2 CTA — green accent */
+.hc-slide-2 .hc-cta-btn {
+  background: linear-gradient(135deg, #10b981, #059669);
+  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3);
+}
+
+.hc-slide-2 .hc-cta-btn:hover {
+  box-shadow: 0 6px 24px rgba(16, 185, 129, 0.45);
+}
+
+/* Slide 4 CTA — blue accent (if added later) */
+.hc-slide-4 .hc-cta-btn {
+  background: linear-gradient(135deg, #38bdf8, #0284c7);
+  box-shadow: 0 4px 16px rgba(56, 189, 248, 0.3);
+}
+
+/* ================================================================
+   4. Stats Rows
+   ================================================================ */
+
+.hc-stats-row {
+  display: flex;
+  gap: 36px;
+  margin-top: 28px;
+}
+
+.hc-stat-num {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: #f97316;
+  line-height: 1;
+}
+
+.hc-stat-label {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.5);
+  margin-top: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Slide-specific stat number colors */
+.hc-slide-2 .hc-stat-num { color: #10b981; }
+.hc-slide-4 .hc-stat-num { color: #38bdf8; }
+.hc-slide-5 .hc-stat-num { color: #10b981; }
+
+/* Brand stats (slides 3 & 4) — centered, white numbers */
+.hc-slide-3 .hc-brand-stats {
+  display: flex;
+  gap: 36px;
+  margin-top: 4px;
+  justify-content: center;
+}
+
+.hc-slide-4 .hc-brand-stats {
+  display: flex;
+  gap: 36px;
+  margin-top: 4px;
+  justify-content: center;
+}
+
+.hc-brand-stats .hc-stat-num {
+  color: #ffffff;
+}
+
+/* ================================================================
+   5. Hero Image (Slides 1 & 2)
+   ================================================================ */
+
+.hc-hero-img-wrap {
+  flex: 1 1 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.hc-hero-img-container {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+}
+
+.hc-hero-img-container::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 60%, rgba(0, 0, 0, 0.25));
+  z-index: 1;
+  pointer-events: none;
+}
+
+.hc-hero-img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* ================================================================
+   6. Logo Grid (Slide 3)
+   ================================================================ */
+
+.hc-logo-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 10px;
+  width: 100%;
+  margin: 4px 0;
+}
+
+.hc-logo-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 6px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 12px;
+  transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hc-logo-card:hover {
+  transform: translateY(-4px);
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(249, 115, 22, 0.45);
+  box-shadow: 0 4px 20px rgba(249, 115, 22, 0.12);
+}
+
+/* Logo image sits on a soft light pill — visible against the dark card */
+.hc-logo-img {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  margin-bottom: 4px;
+  padding: 6px;
+  background: rgba(255, 255, 255, 0.90);
+  border-radius: 10px;
+  filter: none;
+  transition: transform 0.2s ease;
+}
+
+.hc-logo-card:hover .hc-logo-img {
+  transform: scale(1.08);
+}
+
+.hc-brand-name {
+  font-size: 0.58rem;
+  color: rgba(255, 255, 255, 0.72);
+  text-align: center;
+  font-weight: 500;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+/* ================================================================
+   7. Parts Grid (Slide 4)
+   ================================================================ */
+
+.hc-parts-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  width: 100%;
+  margin: 8px 0;
+}
+
+.hc-parts-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 3px solid var(--bc, #f97316);
+  border-radius: 8px;
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.hc-parts-card:hover {
+  transform: translateY(-3px);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.hc-parts-logo {
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+}
+
+.hc-parts-cat {
+  font-size: 0.55rem;
+  color: rgba(255, 255, 255, 0.45);
+  text-align: center;
+  line-height: 1.2;
+}
+
+/* ================================================================
+   8. World Map (Slide 5)
+   ================================================================ */
+
+.hc-slide-5 .hc-hero-inner {
+  align-items: stretch;
+}
+
+.hc-text-col {
+  flex: 1 1 45%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.hc-map-col {
+  flex: 1 1 55%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hc-world-map-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 460px;
+}
+
+.hc-world-map-img {
+  width: 100%;
+  height: auto;
+  display: block;
+  opacity: 0.35;
+  filter: brightness(1.2) contrast(1.1);
+}
+
+.hc-route-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* ================================================================
+   9. Navigation Arrows & Indicators
+   ================================================================ */
+
+.hc-nav-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #ffffff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease, transform 0.2s ease;
+  padding: 0;
+}
+
+.hc-nav-arrow:hover {
+  background: rgba(255, 255, 255, 0.25);
+  transform: translateY(-50%) scale(1.1);
+}
+
+.hc-nav-arrow:active {
+  transform: translateY(-50%) scale(1.0);
+}
+
+.hc-nav-prev {
+  left: 16px;
+}
+
+.hc-nav-next {
+  right: 16px;
+}
+
+.hc-indicators {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  z-index: 10;
+}
+
+.hc-indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: none;
+  padding: 0;
+}
+
+.hc-indicator:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.hc-indicator.active {
+  width: 28px;
+  border-radius: 5px;
+}
+
+/* ================================================================
+   10. Keyframes
+   ================================================================ */
+
+/* Draws an SVG arc by animating stroke-dashoffset from full length to 0 */
+@keyframes drawArc {
+  from {
+    stroke-dashoffset: var(--dash-len, 100);
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Pops a destination dot into view */
+@keyframes popDot {
+  from {
+    r: 0;
+  }
+  to {
+    r: 1.5;
+  }
+}
+
+/* Pulsing ring effect for destination points */
+@keyframes destPulse {
+  0% {
+    r: 0.8;
+    opacity: 0.8;
+  }
+  100% {
+    r: 2.8;
+    opacity: 0;
+  }
+}
+
+/* Subtle pulse for tag dots */
+@keyframes hc-tagPulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* ================================================================
+   11. Responsive
+   ================================================================ */
+
+@media (max-width: 768px) {
+  .hc-carousel {
+    margin: 0 0 24px;
+    border-radius: 0;
+    overflow: hidden;
+  }
+
+  .hc-slides-wrapper {
+    min-height: max(85vh, 580px);
+  }
+
+  .hc-slide {
+    padding: 28px 20px;
+  }
+
+  /* Stack all two-column layouts */
+  .hc-hero-inner {
+    flex-direction: column !important;
+    gap: 24px;
+  }
+
+  .hc-hero-text,
+  .hc-text-col,
+  .hc-map-col,
+  .hc-hero-img-wrap {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
+  .hc-hero-title {
+    font-size: 1.5rem;
+    text-align: center !important;
+  }
+
+  .hc-hero-desc {
+    font-size: 0.85rem;
+    text-align: center !important;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .hc-tag {
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .hc-cta-btn {
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .hc-stats-row,
+  .hc-brand-stats {
+    gap: 20px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .hc-stat-num {
+    font-size: 1.3rem;
+  }
+
+  .hc-logo-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+
+  .hc-parts-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+
+  .hc-nav-arrow {
+    width: 32px;
+    height: 32px;
+  }
+
+  .hc-nav-prev {
+    left: 8px;
+  }
+
+  .hc-nav-next {
+    right: 8px;
+  }
+
+  .hc-hero-img-container {
+    max-width: 280px;
+  }
+
+  .hc-slide-3 .hc-hero-inner,
+  .hc-slide-4 .hc-hero-inner {
+    gap: 16px;
+  }
+
+  .hc-world-map-wrap {
+    max-width: 320px;
+  }
+}

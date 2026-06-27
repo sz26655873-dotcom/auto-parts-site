@@ -3,9 +3,10 @@
  *
  * Displays summary cards (product count, current language, contact status),
  * quick-link buttons to each management page, and data export/import shortcuts.
+ * All data operations are now async (calling KV API).
  */
 
-import { useRef, type ChangeEvent } from 'react';
+import { useRef, useState, type ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -18,6 +19,7 @@ import {
   Chip,
   Divider,
   Alert,
+  CircularProgress,
 } from '@mui/material';
 import InventoryIcon from '@mui/icons-material/Inventory';
 import LanguageIcon from '@mui/icons-material/Language';
@@ -37,21 +39,30 @@ import { languageNames } from '../i18n/translations';
 function Dashboard(): JSX.Element {
   const navigate = useNavigate();
   const { lang } = useLanguage();
-  const { products, contactInfo, companyInfo, lastModified, exportAllData, importAllData } = useAdminData();
+  const { products, contactInfo, companyInfo, lastModified, exportAllData, importAllData, loading } = useAdminData();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [exportLoading, setExportLoading] = useState<boolean>(false);
+  const [importLoading, setImportLoading] = useState<boolean>(false);
 
   /** Triggers a JSON file download of all admin data. */
-  const handleExport = (): void => {
-    const json = exportAllData();
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `autoparts-backup-${new Date().toISOString().split('T')[0]}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+  const handleExport = async (): Promise<void> => {
+    setExportLoading(true);
+    try {
+      const json = await exportAllData();
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `autoparts-backup-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert('导出失败: ' + (err.message || '未知错误'));
+    } finally {
+      setExportLoading(false);
+    }
   };
 
   /** Handles JSON file import. */
@@ -62,44 +73,50 @@ function Dashboard(): JSX.Element {
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>): void => {
     const file = event.target.files?.[0];
     if (!file) return;
+    setImportLoading(true);
     const reader = new FileReader();
-    reader.onload = (e): void => {
+    reader.onload = async (e): Promise<void> => {
       const text = e.target?.result as string;
-      const success = importAllData(text);
-      if (success) {
-        alert('Data imported successfully!');
-      } else {
-        alert('Failed to import data. Please check the file format.');
+      try {
+        const success = await importAllData(text);
+        if (success) {
+          alert('数据导入成功！');
+        } else {
+          alert('数据导入失败，请检查文件格式。');
+        }
+      } catch (err: any) {
+        alert('导入失败: ' + (err.message || '未知错误'));
+      } finally {
+        setImportLoading(false);
       }
     };
     reader.readAsText(file);
-    // Reset input so the same file can be re-selected.
     event.target.value = '';
   };
 
   /** Summary card data. */
   const summaryCards = [
     {
-      label: 'Total Products',
+      label: '产品总数',
       value: String(products.length),
       icon: <InventoryIcon />,
       color: 'primary.main',
     },
     {
-      label: 'Current Language',
+      label: '当前语言',
       value: languageNames[lang],
       icon: <LanguageIcon />,
       color: 'secondary.main',
     },
     {
-      label: 'WhatsApp Number',
-      value: contactInfo.whatsapp || 'Not set',
+      label: 'WhatsApp号码',
+      value: contactInfo.whatsapp || '未设置',
       icon: <ContactPhoneIcon />,
       color: 'primary.light',
     },
     {
-      label: 'Company Name',
-      value: companyInfo.name[lang] || 'Not set',
+      label: '公司名称',
+      value: companyInfo.name[lang] || '未设置',
       icon: <BusinessIcon />,
       color: 'secondary.light',
     },
@@ -107,25 +124,33 @@ function Dashboard(): JSX.Element {
 
   /** Quick navigation buttons. */
   const quickLinks = [
-    { label: 'Manage Products', path: '/admin/products', icon: <InventoryIcon /> },
-    { label: 'Edit Contact Info', path: '/admin/contact', icon: <ContactPhoneIcon /> },
-    { label: 'Edit Company Info', path: '/admin/company', icon: <BusinessIcon /> },
-    { label: 'Data Management', path: '/admin/data', icon: <StorageIcon /> },
+    { label: '管理产品', path: '/admin/products', icon: <InventoryIcon /> },
+    { label: '编辑联系方式', path: '/admin/contact', icon: <ContactPhoneIcon /> },
+    { label: '编辑公司信息', path: '/admin/company', icon: <BusinessIcon /> },
+    { label: '数据管理', path: '/admin/data', icon: <StorageIcon /> },
   ];
+
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
 
   return (
     <Box>
       <Typography variant="h4" sx={{ fontWeight: 800, mb: 1, color: 'primary.main' }}>
-        Dashboard
+        控制台
       </Typography>
       <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
-        Welcome to the Altai Auto Parts admin panel. Manage your products, contact details, and company information.
+        欢迎使用 Altai Auto Parts 管理后台。在这里管理您的产品、联系方式和公司信息。
       </Typography>
 
       {/* Last modified info */}
       {lastModified && (
         <Alert severity="info" sx={{ mb: 3 }}>
-          Data last modified: {new Date(lastModified).toLocaleString()}
+          数据最后修改时间：{new Date(lastModified).toLocaleString()}
         </Alert>
       )}
 
@@ -166,7 +191,7 @@ function Dashboard(): JSX.Element {
 
       {/* Quick navigation */}
       <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>
-        Quick Actions
+        快捷操作
       </Typography>
       <Grid container spacing={2} sx={{ mb: 4 }}>
         {quickLinks.map((link) => (
@@ -215,24 +240,26 @@ function Dashboard(): JSX.Element {
 
       {/* Data export/import shortcuts */}
       <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>
-        Data Backup
+        数据备份
       </Typography>
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
         <Button
           variant="contained"
           color="primary"
-          startIcon={<DownloadIcon />}
+          startIcon={exportLoading ? <CircularProgress size={20} color="inherit" /> : <DownloadIcon />}
           onClick={handleExport}
+          disabled={exportLoading}
         >
-          Export Data (JSON)
+          {exportLoading ? '导出中...' : '导出数据 (JSON)'}
         </Button>
         <Button
           variant="outlined"
           color="primary"
-          startIcon={<UploadIcon />}
+          startIcon={importLoading ? <CircularProgress size={20} color="inherit" /> : <UploadIcon />}
           onClick={handleImportClick}
+          disabled={importLoading}
         >
-          Import Data (JSON)
+          {importLoading ? '导入中...' : '导入数据 (JSON)'}
         </Button>
         <input
           ref={fileInputRef}

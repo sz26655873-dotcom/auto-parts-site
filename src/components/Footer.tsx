@@ -1,25 +1,27 @@
 import { Box, Container, Typography, Grid, Stack, Link, IconButton } from '@mui/material';
+import { Link as RouterLink } from 'react-router-dom';
+import DirectionsCarIcon from '@mui/icons-material/DirectionsCar';
 import FacebookIcon from '@mui/icons-material/Facebook';
 import TwitterIcon from '@mui/icons-material/Twitter';
 import LinkedInIcon from '@mui/icons-material/LinkedIn';
 import YouTubeIcon from '@mui/icons-material/YouTube';
-import DirectionsCarIcon from '@mui/icons-material/DirectionsCar';
 import { useLanguage } from '../i18n/LanguageContext';
 
 /** Quick navigation links for the footer. */
 const footerLinks = [
-  { key: 'nav.home', href: '#home' },
-  { key: 'nav.products', href: '#products' },
-  { key: 'nav.about', href: '#about' },
-  { key: 'nav.contact', href: '#contact' },
+  { key: 'nav.home', href: '/' },
+  { key: 'nav.products', href: '/products' },
+  { key: 'nav.about', href: '/about' },
+  { key: 'nav.contact', href: '/contact' },
 ];
 
-/** Social media platforms with icons and placeholder links. */
-const socialLinks = [
-  { icon: <FacebookIcon />, href: '#', label: 'Facebook' },
-  { icon: <TwitterIcon />, href: '#', label: 'Twitter' },
-  { icon: <LinkedInIcon />, href: '#', label: 'LinkedIn' },
-  { icon: <YouTubeIcon />, href: '#', label: 'YouTube' },
+/** Social media platforms — links will be added when real accounts are created. */
+// Disabled until real social accounts are available; href='#' is bad UX and SEO.
+const socialLinks: { icon: JSX.Element; href: string; label: string }[] = [
+  // { icon: <FacebookIcon />, href: 'https://facebook.com/altaiautoparts', label: 'Facebook' },
+  // { icon: <TwitterIcon />, href: 'https://twitter.com/altaiautoparts', label: 'Twitter' },
+  // { icon: <LinkedInIcon />, href: 'https://linkedin.com/company/altaiautoparts', label: 'LinkedIn' },
+  // { icon: <YouTubeIcon />, href: 'https://youtube.com/@altaiautoparts', label: 'YouTube' },
 ];
 
 /** Current year for copyright notice. */
@@ -48,12 +50,18 @@ function Footer(): JSX.Element {
           {/* Brand column */}
           <Grid item xs={12} md={5}>
             <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
-              <DirectionsCarIcon sx={{ color: 'secondary.main' }} />
-              <Typography variant="h6" sx={{ fontWeight: 800 }}>
-                Altai Auto
-                <Box component="span" sx={{ color: 'secondary.main' }}>
-                  Parts
-                </Box>
+              <DirectionsCarIcon sx={{ fontSize: 32, color: 'secondary.main' }} />
+              <Typography
+                variant="h6"
+                component="span"
+                sx={{
+                  color: '#fff',
+                  fontWeight: 800,
+                  letterSpacing: '-0.5px',
+                  fontSize: '1.3rem',
+                }}
+              >
+                Altai Auto Parts
               </Typography>
             </Stack>
             <Typography
@@ -76,7 +84,8 @@ function Footer(): JSX.Element {
               {footerLinks.map((link) => (
                 <Link
                   key={link.key}
-                  href={link.href}
+                  component={RouterLink}
+                  to={link.href}
                   underline="hover"
                   sx={{
                     color: 'rgba(255,255,255,0.6)',

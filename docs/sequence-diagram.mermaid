@@ -1,0 +1,42 @@
+sequenceDiagram
+    actor Visitor as 前台访客
+    participant App as AdminDataProvider
+    participant API as /api/data/:key
+    participant KV as PRODUCTS_DATA KV
+    participant Seed as seedData.ts
+    participant LS as localStorage 缓存
+
+    Visitor->>App: 打开首页
+    App->>App: setLoading(true)
+
+    par 并行请求四类数据
+        App->>API: GET /api/data/products
+        API->>KV: kv.get('products')
+        KV-->>API: null（首次部署，KV 为空）
+        API->>Seed: getSeedProducts()
+        Seed-->>API: 默认 16 条产品
+        API->>KV: kv.put('products', JSON.stringify(seedProducts))
+        API->>KV: kv.put('last_modified', now)
+        API-->>App: {success, data: Product[], lastModified}
+    and
+        App->>API: GET /api/data/contact_info
+        API->>KV: kv.get('contact_info')
+        KV-->>API: null
+        API->>Seed: getSeedContactInfo()
+        API->>KV: kv.put('contact_info', ...)
+        API-->>App: {success, data: ContactInfo, lastModified}
+    and
+        App->>API: GET /api/data/company_info
+        API->>KV: kv.get('company_info')
+        API->>KV: kv.put(...)
+        API-->>App: {success, data: CompanyInfo}
+    and
+        App->>API: GET /api/data/hero_slides
+        API->>KV: kv.get('hero_slides')
+        API->>KV: kv.put(...)
+        API-->>App: {success, data: HeroSlidesInfo}
+    end
+
+    App->>LS: cacheToLocalStorage（写入离线快照）
+    App->>App: setLoading(false), setNetworkStatus('online')
+    App-->>Visitor: 页面渲染完成

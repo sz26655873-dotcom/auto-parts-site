@@ -1,0 +1,93 @@
+classDiagram
+    direction TB
+
+    class KVNamespace {
+        +get(key: string) Promise~string | null~
+        +put(key: string, value: string) Promise~void~
+        +delete(key: string) Promise~void~
+    }
+
+    class KvHelper {
+        +kvGet(kv, key, seedFn) Promise~KvResult~
+        +kvPut(kv, key, value) Promise~KvResult~
+        +kvPutBulk(kv, dataMap) Promise~BulkResult~
+    }
+
+    class SeedData {
+        +getSeedProducts() Product[]
+        +getSeedContactInfo() ContactInfo
+        +getSeedCompanyInfo() CompanyInfo
+        +getSeedHeroSlides() HeroSlidesInfo
+        +getAllSeeds() Record~string, any~
+    }
+
+    class DataApiController {
+        +onRequestGet(context) Promise~Response~
+        +onRequestPut(context) Promise~Response~
+    }
+
+    class BulkApiController {
+        +onRequestPost(context) Promise~Response~
+    }
+
+    class ApiResponse {
+        +success: boolean
+        +data: T
+        +lastModified: string
+        +error: string
+    }
+
+    class KvResult {
+        +data: T
+        +lastModified: string
+        +wasSeeded: boolean
+    }
+
+    class AdminDataContext {
+        +products: Product[]
+        +contactInfo: ContactInfo
+        +companyInfo: CompanyInfo
+        +heroSlides: HeroSlidesInfo
+        +dataVersion: number
+        +lastModified: string | null
+        +loading: boolean
+        +error: string | null
+        +networkStatus: online | offline | syncing
+        +updateProducts(products) Promise~void~
+        +updateContactInfo(info) Promise~void~
+        +updateCompanyInfo(info) Promise~void~
+        +updateHeroSlides(info) Promise~void~
+        +exportAllData() Promise~string~
+        +importAllData(json) Promise~boolean~
+        +resetAllData() Promise~void~
+        +refreshData() Promise~void~
+    }
+
+    class AdminDataProvider {
+        +mount() fetchAllDataFromAPI()
+        +fallbackToLocalStorage()
+        +cacheToLocalStorage()
+        +pollLastModified()
+    }
+
+    class LocalStorageCache {
+        +cacheProducts(products) void
+        +cacheContactInfo(info) void
+        +cacheCompanyInfo(info) void
+        +cacheHeroSlides(info) void
+        +getCachedProducts() Product[] | null
+        +getCachedContactInfo() ContactInfo | null
+        +getCachedCompanyInfo() CompanyInfo | null
+        +getCachedHeroSlides() HeroSlidesInfo | null
+        +clearAll() void
+    }
+
+    KVNamespace <-- KvHelper : uses
+    SeedData <-- KvHelper : provides seedFn
+    KvHelper <-- DataApiController : uses
+    KvHelper <-- BulkApiController : uses
+    DataApiController --> ApiResponse : returns
+    BulkApiController --> ApiResponse : returns
+    AdminDataContext <-- AdminDataProvider : provides
+    AdminDataContext <-- LocalStorageCache : fallback
+    AdminDataProvider --> ApiResponse : receives

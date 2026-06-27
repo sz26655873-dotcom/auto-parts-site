@@ -1,0 +1,67 @@
+# Cache-Control headers for Cloudflare Pages
+# HTML files — short cache with revalidation (SPA shell is safe to cache briefly)
+/*.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+# Root index.html
+/
+  Cache-Control: public, max-age=0, must-revalidate
+
+# JS/CSS assets have hash in filename — safe to cache long-term
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Images
+/images/*
+  Cache-Control: public, max-age=86400
+
+# API GET endpoints — CDN cache 5min, browser 60s, stale-while-revalidate 60s
+# PUT/POST admin writes set no-cache in Function code, so this only affects GET reads
+/api/data/*
+  Cache-Control: public, max-age=60, s-maxage=300, stale-while-revalidate=60
+
+# Other API endpoints (inquiry, auth, upload, etc.) — no caching
+/api/inquiry
+  Cache-Control: no-cache, no-store, must-revalidate
+/api/inquiries/*
+  Cache-Control: no-cache, no-store, must-revalidate
+/api/auth
+  Cache-Control: no-cache, no-store, must-revalidate
+/api/upload
+  Cache-Control: no-cache, no-store, must-revalidate
+/api/track
+  Cache-Control: no-cache, no-store, must-revalidate
+/api/image
+  Cache-Control: no-cache, no-store, must-revalidate
+/api/ai/*
+  Cache-Control: no-cache, no-store, must-revalidate
+
+# sitemap and robots
+/sitemap.xml
+  Cache-Control: public, max-age=600
+
+# /robots.txt 仍为静态文件，可缓存
+
+# robots.txt
+/robots.txt
+  Cache-Control: public, max-age=86400
+
+# og-image.png (compressed OG share image)
+/og-image.png
+  Cache-Control: public, max-age=86400
+
+# logo.png (compressed logo)
+/logo.png
+  Cache-Control: public, max-age=86400
+
+# ──────────────────────────────────────────────────────────────
+# Security Headers — applied to all responses
+# ──────────────────────────────────────────────────────────────
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: SAMEORIGIN
+  X-XSS-Protection: 1; mode=block
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+  Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https://www.altai.parts https://*.picsum.photos; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://www.altai.parts https://api.whatsapp.com; frame-ancestors 'self'; base-uri 'self'; form-action 'self'

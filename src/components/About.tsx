@@ -35,7 +35,6 @@ function About(): JSX.Element {
 
   return (
     <Box
-      id="about"
       sx={{
         py: { xs: 8, md: 12 },
         backgroundColor: '#F8FAFC',

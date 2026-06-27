@@ -1,18 +1,16 @@
 /**
- * localStorage persistence layer for the Admin backend.
+ * Admin data types, seed defaults, auth helpers, and localStorage cache.
  *
- * All editable site data (products, contact info, company info) is stored
- * in localStorage so that admin changes persist across page reloads.
- * When localStorage is empty or corrupted, the code falls back to the
- * default seed data defined in products.ts and translations.ts.
+ * Formerly a localStorage CRUD layer, now simplified to provide:
+ * - Type definitions (ContactInfo, CompanyInfo, Product, etc.)
+ * - Seed default values for offline fallback and data initialization
+ * - Auth helpers (sessionStorage token management)
+ * - localStorage cache functions (offline fallback for API data)
  *
- * SECURITY NOTE: This is a pure front-end project. The admin password and
- * all data are stored client-side. For production use with higher security
- * requirements, migrate to a backend API with proper authentication.
+ * All data I/O is now handled via async API calls in AdminDataContext.
  */
 
 import type { Language } from '../i18n/translations';
-import { translations } from '../i18n/translations';
 import type { LocalizedString, Product } from '../data/products';
 import { products as defaultProducts } from '../data/products';
 
@@ -34,6 +32,8 @@ export interface ContactInfo {
   wechatId: string;
   /** URL of the WeChat QR code image. */
   wechatQrImage: string;
+  /** URL of the WhatsApp QR code image. */
+  whatsappQrImage: string;
 }
 
 /** A single advantage card (title + description in 5 languages). */
@@ -81,23 +81,24 @@ export interface AdminDataExport {
 // Constants
 // ---------------------------------------------------------------------------
 
-/** localStorage keys for each data section. */
-const STORAGE_KEYS = {
-  products: 'autoparts_products',
-  contactInfo: 'autoparts_contact_info',
-  companyInfo: 'autoparts_company_info',
-  version: 'autoparts_data_version',
-  lastModified: 'autoparts_data_last_modified',
-} as const;
-
 /** Current data schema version (increment when the shape changes). */
 export const CURRENT_DATA_VERSION = 1;
 
-/** Admin password (hardcoded — see SECURITY NOTE above). */
-export const ADMIN_PASSWORD = 'admin2024';
+/** sessionStorage key for the admin auth token (server-issued). */
+export const ADMIN_AUTH_KEY = 'autoparts_admin_token';
 
-/** sessionStorage key for the admin authentication flag. */
-export const ADMIN_AUTH_KEY = 'autoparts_admin_auth';
+/** localStorage key prefix for offline cache data. */
+const CACHE_PREFIX = 'autoparts_cache_';
+
+/** Old localStorage key prefix for legacy data detection. */
+const LEGACY_KEYS = [
+  'autoparts_products',
+  'autoparts_contact_info',
+  'autoparts_company_info',
+  'autoparts_hero_slides',
+  'autoparts_data_version',
+  'autoparts_data_last_modified',
+] as const;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -105,17 +106,6 @@ export const ADMIN_AUTH_KEY = 'autoparts_admin_auth';
 
 /** All supported languages in canonical order. */
 const ALL_LANGS: Language[] = ['en', 'zh', 'ru', 'ar', 'ko'];
-
-/**
- * Builds a LocalizedString from a translation key by looking up
- * the value in every supported language.
- */
-function localizedFromTranslationKey(key: string): LocalizedString {
-  return ALL_LANGS.reduce((acc, lang) => {
-    acc[lang] = translations[lang][key] ?? key;
-    return acc;
-  }, {} as LocalizedString);
-}
 
 /** Creates an empty LocalizedString with all languages set to ''. */
 export function emptyLocalizedString(): LocalizedString {
@@ -143,6 +133,7 @@ export const DEFAULT_CONTACT_INFO: ContactInfo = {
   },
   wechatId: '15711970362',
   wechatQrImage: 'https://picsum.photos/seed/wechatqr/300/300',
+  whatsappQrImage: '',
 };
 
 /** Default company info — derived from existing translation strings. */
@@ -154,9 +145,9 @@ export const DEFAULT_COMPANY_INFO: CompanyInfo = {
     ar: 'Altai Auto Parts',
     ko: 'Altai Auto Parts',
   },
-  title: localizedFromTranslationKey('about.title'),
-  description1: localizedFromTranslationKey('about.desc1'),
-  description2: localizedFromTranslationKey('about.desc2'),
+  title: emptyLocalizedString(),
+  description1: emptyLocalizedString(),
+  description2: emptyLocalizedString(),
   stats: {
     stat1: '500K+',
     stat2: '60+',
@@ -164,232 +155,159 @@ export const DEFAULT_COMPANY_INFO: CompanyInfo = {
     stat4: '800+',
   },
   advantages: {
-    oem: {
-      title: localizedFromTranslationKey('adv.oem.title'),
-      desc: localizedFromTranslationKey('adv.oem.desc'),
-    },
-    shipping: {
-      title: localizedFromTranslationKey('adv.shipping.title'),
-      desc: localizedFromTranslationKey('adv.shipping.desc'),
-    },
-    price: {
-      title: localizedFromTranslationKey('adv.price.title'),
-      desc: localizedFromTranslationKey('adv.price.desc'),
-    },
-    exportAdv: {
-      title: localizedFromTranslationKey('adv.export.title'),
-      desc: localizedFromTranslationKey('adv.export.desc'),
-    },
+    oem: { title: emptyLocalizedString(), desc: emptyLocalizedString() },
+    shipping: { title: emptyLocalizedString(), desc: emptyLocalizedString() },
+    price: { title: emptyLocalizedString(), desc: emptyLocalizedString() },
+    exportAdv: { title: emptyLocalizedString(), desc: emptyLocalizedString() },
   },
 };
 
+/** Default products list — from seed data. */
+export const DEFAULT_PRODUCTS: Product[] = defaultProducts;
+
 // ---------------------------------------------------------------------------
-// Generic localStorage read/write helpers
+// localStorage cache (offline fallback)
 // ---------------------------------------------------------------------------
 
-/** Safely reads and parses a JSON value from localStorage. */
-function readJSON<T>(key: string): T | null {
+/**
+ * Caches data to localStorage with the autoparts_cache_ prefix.
+ * Used as offline fallback when API calls fail.
+ */
+export function cacheToLocalStorage(key: string, data: unknown): void {
   try {
-    const raw = localStorage.getItem(key);
-    if (raw === null) return null;
-    return JSON.parse(raw) as T;
-  } catch {
-    return null;
-  }
-}
-
-/** Serialises and writes a value to localStorage. */
-function writeJSON(key: string, value: unknown): void {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-    updateLastModified();
+    localStorage.setItem(CACHE_PREFIX + key, JSON.stringify(data));
   } catch {
     // Storage might be full or unavailable — silently ignore.
   }
 }
 
-/** Updates the last-modified timestamp. */
-function updateLastModified(): void {
+/**
+ * Reads cached data from localStorage.
+ * Returns null if no cache exists or data is corrupted.
+ */
+export function getCachedData(key: string): Record<string, unknown> | unknown[] | null {
   try {
-    localStorage.setItem(
-      STORAGE_KEYS.lastModified,
-      new Date().toISOString(),
-    );
-  } catch {
-    // ignore
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Products
-// ---------------------------------------------------------------------------
-
-/** Returns the stored products, or the default seed data if none exist. */
-export function getProducts(): Product[] {
-  const stored = readJSON<Product[]>(STORAGE_KEYS.products);
-  if (stored && Array.isArray(stored) && stored.length > 0) {
-    return stored;
-  }
-  return defaultProducts;
-}
-
-/** Persists the products array to localStorage. */
-export function setProducts(products: Product[]): void {
-  writeJSON(STORAGE_KEYS.products, products);
-}
-
-// ---------------------------------------------------------------------------
-// Contact Info
-// ---------------------------------------------------------------------------
-
-/** Returns the stored contact info, or defaults if none exists. */
-export function getContactInfo(): ContactInfo {
-  const stored = readJSON<Partial<ContactInfo>>(STORAGE_KEYS.contactInfo);
-  if (stored) {
-    // Merge with defaults so new fields are always present.
-    return { ...DEFAULT_CONTACT_INFO, ...stored };
-  }
-  return DEFAULT_CONTACT_INFO;
-}
-
-/** Persists the contact info to localStorage. */
-export function setContactInfo(info: ContactInfo): void {
-  writeJSON(STORAGE_KEYS.contactInfo, info);
-}
-
-// ---------------------------------------------------------------------------
-// Company Info
-// ---------------------------------------------------------------------------
-
-/** Returns the stored company info, or defaults if none exists. */
-export function getCompanyInfo(): CompanyInfo {
-  const stored = readJSON<Partial<CompanyInfo>>(STORAGE_KEYS.companyInfo);
-  if (stored) {
-    // Deep-merge with defaults to ensure all nested fields exist.
-    return {
-      ...DEFAULT_COMPANY_INFO,
-      ...stored,
-      stats: { ...DEFAULT_COMPANY_INFO.stats, ...(stored.stats ?? {}) },
-      advantages: {
-        oem: { ...DEFAULT_COMPANY_INFO.advantages.oem, ...(stored.advantages?.oem ?? {}) },
-        shipping: { ...DEFAULT_COMPANY_INFO.advantages.shipping, ...(stored.advantages?.shipping ?? {}) },
-        price: { ...DEFAULT_COMPANY_INFO.advantages.price, ...(stored.advantages?.price ?? {}) },
-        exportAdv: { ...DEFAULT_COMPANY_INFO.advantages.exportAdv, ...(stored.advantages?.exportAdv ?? {}) },
-      },
-    };
-  }
-  return DEFAULT_COMPANY_INFO;
-}
-
-/** Persists the company info to localStorage. */
-export function setCompanyInfo(info: CompanyInfo): void {
-  writeJSON(STORAGE_KEYS.companyInfo, info);
-}
-
-// ---------------------------------------------------------------------------
-// Version & metadata
-// ---------------------------------------------------------------------------
-
-/** Returns the stored data schema version, or the current version. */
-export function getDataVersion(): number {
-  const stored = readJSON<number>(STORAGE_KEYS.version);
-  return typeof stored === 'number' ? stored : CURRENT_DATA_VERSION;
-}
-
-/** Returns the ISO timestamp of the last data modification. */
-export function getLastModified(): string | null {
-  try {
-    return localStorage.getItem(STORAGE_KEYS.lastModified);
+    const raw = localStorage.getItem(CACHE_PREFIX + key);
+    if (raw === null) return null;
+    return JSON.parse(raw);
   } catch {
     return null;
   }
 }
 
-// ---------------------------------------------------------------------------
-// Export / Import / Reset
-// ---------------------------------------------------------------------------
-
-/** Builds a complete JSON export payload of all admin data. */
-export function exportData(): string {
-  const payload: AdminDataExport = {
-    version: CURRENT_DATA_VERSION,
-    exportedAt: new Date().toISOString(),
-    products: getProducts(),
-    contactInfo: getContactInfo(),
-    companyInfo: getCompanyInfo(),
-  };
-  return JSON.stringify(payload, null, 2);
+/**
+ * Clears all localStorage entries with the autoparts_cache_ prefix.
+ * Does not affect other localStorage data.
+ */
+export function clearAllCache(): void {
+  try {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(CACHE_PREFIX)) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach((key) => localStorage.removeItem(key));
+  } catch {
+    // ignore
+  }
 }
 
 /**
- * Imports admin data from a JSON string.
- * Validates the basic structure before writing.
- *
- * @returns `true` on success, `false` if the JSON is invalid.
+ * Checks whether legacy localStorage data exists (from the old
+ * localStorage-based storage system). Returns true if any of the
+ * old keys (autoparts_products, etc.) have data.
  */
-export function importData(json: string): boolean {
+export function hasLegacyData(): boolean {
   try {
-    const parsed = JSON.parse(json) as Partial<AdminDataExport>;
-    if (
-      !parsed ||
-      !Array.isArray(parsed.products) ||
-      typeof parsed.contactInfo !== 'object' ||
-      typeof parsed.companyInfo !== 'object'
-    ) {
-      return false;
+    for (const key of LEGACY_KEYS) {
+      const value = localStorage.getItem(key);
+      if (value !== null && value !== '' && value !== 'null') {
+        return true;
+      }
     }
-    setProducts(parsed.products as Product[]);
-    setContactInfo({ ...DEFAULT_CONTACT_INFO, ...parsed.contactInfo });
-    setCompanyInfo({ ...DEFAULT_COMPANY_INFO, ...parsed.companyInfo } as CompanyInfo);
-    try {
-      localStorage.setItem(
-        STORAGE_KEYS.version,
-        String(parsed.version ?? CURRENT_DATA_VERSION),
-      );
-    } catch {
-      // ignore
-    }
-    updateLastModified();
-    return true;
+    return false;
   } catch {
     return false;
   }
 }
 
-/** Removes all admin data from localStorage, reverting to code defaults. */
-export function resetData(): void {
+/**
+ * Reads all legacy localStorage data and returns it as a structured
+ * object suitable for bulk import via POST /api/data/bulk.
+ */
+export function readLegacyData(): {
+  products: Product[] | null;
+  contactInfo: ContactInfo | null;
+  companyInfo: CompanyInfo | null;
+} | null {
   try {
-    localStorage.removeItem(STORAGE_KEYS.products);
-    localStorage.removeItem(STORAGE_KEYS.contactInfo);
-    localStorage.removeItem(STORAGE_KEYS.companyInfo);
-    localStorage.removeItem(STORAGE_KEYS.version);
-    localStorage.removeItem(STORAGE_KEYS.lastModified);
+    const productsRaw = localStorage.getItem('autoparts_products');
+    const contactRaw = localStorage.getItem('autoparts_contact_info');
+    const companyRaw = localStorage.getItem('autoparts_company_info');
+
+    if (!productsRaw && !contactRaw && !companyRaw) return null;
+
+    return {
+      products: productsRaw ? JSON.parse(productsRaw) as Product[] : null,
+      contactInfo: contactRaw ? JSON.parse(contactRaw) as ContactInfo : null,
+      companyInfo: companyRaw ? JSON.parse(companyRaw) as CompanyInfo : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Removes all legacy localStorage keys (autoparts_*).
+ * Called after successful data migration to KV.
+ */
+export function clearLegacyData(): void {
+  try {
+    for (const key of LEGACY_KEYS) {
+      localStorage.removeItem(key);
+    }
   } catch {
     // ignore
   }
 }
 
 // ---------------------------------------------------------------------------
-// Auth helpers
+// Auth helpers (server-side verified)
 // ---------------------------------------------------------------------------
 
-/** Returns whether the admin is currently authenticated. */
+/** Returns whether the admin is currently authenticated (has a valid token). */
 export function isAuthenticated(): boolean {
   try {
-    return sessionStorage.getItem(ADMIN_AUTH_KEY) === 'true';
+    return !!sessionStorage.getItem(ADMIN_AUTH_KEY);
   } catch {
     return false;
   }
 }
 
-/** Sets the authenticated flag in sessionStorage. */
-export function setAuthenticated(value: boolean): void {
+/** Returns the auth token for API calls, or null if not authenticated. */
+export function getAuthToken(): string | null {
   try {
-    if (value) {
-      sessionStorage.setItem(ADMIN_AUTH_KEY, 'true');
-    } else {
-      sessionStorage.removeItem(ADMIN_AUTH_KEY);
-    }
+    return sessionStorage.getItem(ADMIN_AUTH_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/** Stores the server-issued auth token in sessionStorage. */
+export function setAuthToken(token: string): void {
+  try {
+    sessionStorage.setItem(ADMIN_AUTH_KEY, token);
+  } catch {
+    // ignore
+  }
+}
+
+/** Clears the auth token (logout). */
+export function clearAuthToken(): void {
+  try {
+    sessionStorage.removeItem(ADMIN_AUTH_KEY);
   } catch {
     // ignore
   }
